@@ -273,39 +273,18 @@ class USB2AudioInterface(Elaboratable):
 
         wb_clk = Signal()
         wb_rst = Signal()
-        wb_err = Signal()
-        wb_we = Signal()
-        wb_cyc = Signal()
-        wb_stb = Signal()
-        wb_ack = Signal()
-        wb_dat_i = Signal(32)
-        wb_dat_o = Signal(32)
-        wb_adr = Signal(10)
-        wb_sel = Signal(4)
-
-        m_wb_we = Signal()
-        m_wb_cyc = Signal()
-        m_wb_stb = Signal()
-        m_wb_ack = Signal()
-        m_wb_err = Signal()
-        m_wb_adr = Signal(32)
-        m_wb_sel = Signal(4)
-        m_wb_dat_i = Signal(32)
-        m_wb_dat_o = Signal(32)
-
         mtxerr_pad = Signal()
-
         md_pad_o = Signal()
         md_padoe = Signal()
         mac_int = Signal()
 
-        self.wb_usb_mux = Interface(addr_width = 32, data_width = 32, granularity = 32)
-        self.wb_mac_mux = Interface(addr_width = 32, data_width = 32, granularity = 32)
-        self.wb_mux_mac = Interface(addr_width = 10, data_width = 32, granularity = 32)
-        self.wb_mux_ram = Interface(addr_width = 10, data_width = 32, granularity = 32)
+        self.wb_usb_mux = Interface(addr_width = 32, data_width = 32, granularity = 32, features = { "err" })
+        self.wb_mac_mux = Interface(addr_width = 32, data_width = 32, granularity = 32, features = { "err" })
+        self.wb_mux_mac = Interface(addr_width = 10, data_width = 32, granularity = 32, features = { "err" })
+        self.wb_mux_ram = Interface(addr_width = 10, data_width = 32, granularity = 32, features = { "err" })
     
-        m.submodules.wb_arbiter = Arbiter(addr_width = 32, data_width = 32, granularity = 32)
-        m.submodules.wb_decoder = Decoder(addr_width = 32, data_width = 32, granularity = 32)
+        m.submodules.wb_arbiter = Arbiter(addr_width = 32, data_width = 32, granularity = 32, features = { "err" })
+        m.submodules.wb_decoder = Decoder(addr_width = 32, data_width = 32, granularity = 32, features = { "err" })
 
         m.d.comb += m.submodules.wb_arbiter.bus.connect(m.submodules.wb_decoder.bus)
 
@@ -322,29 +301,37 @@ class USB2AudioInterface(Elaboratable):
 
         phy = platform.request("phy")
 
+        m.d.comb += [
+            wb_clk.eq(ClockSignal("usb")),
+            wb_rst.eq(ResetSignal("usb")),
+            phy.resetn.eq(~wb_rst),
+            phy.mdio.o.eq(md_pad_o),
+            phy.mdio.oe.eq(md_padoe)
+        ]
+
         m.submodules.mac = Instance("eth_top",
-            i_wb_clk_i = wb_clk,
-            i_wb_rst_i = wb_rst,
-            i_wb_dat_i = wb_dat_i,
-            o_wb_dat_o = wb_dat_o,
+            i_wb_clk_i = wb_clk, # testbench shows 40MHz as a clock
+            i_wb_rst_i = wb_rst, # active high!
+            i_wb_dat_i = self.wb_mux_mac.dat_w,
+            o_wb_dat_o = self.wb_mux_mac.dat_r,
 
-            i_wb_adr_i = wb_adr, 
-            i_wb_sel_i = wb_sel, 
-            i_wb_we_i = wb_we, 
-            i_wb_cyc_i = wb_cyc, 
-            i_wb_stb_i = wb_stb, 
-            o_wb_ack_o = wb_ack, 
-            o_wb_err_o = wb_err,
+            i_wb_adr_i = self.wb_mux_mac.adr, 
+            i_wb_sel_i = self.wb_mux_mac.sel, 
+            i_wb_we_i  = self.wb_mux_mac.we, 
+            i_wb_cyc_i = self.wb_mux_mac.cyc, 
+            i_wb_stb_i = self.wb_mux_mac.stb, 
+            o_wb_ack_o = self.wb_mux_mac.ack, 
+            o_wb_err_o = self.wb_mux_mac.err,
 
-            o_m_wb_adr_o = m_wb_adr, 
-            o_m_wb_sel_o = m_wb_sel, 
-            o_m_wb_we_o = m_wb_we,
-            o_m_wb_dat_o = m_wb_dat_o, 
-            i_m_wb_dat_i = m_wb_dat_i, 
-            o_m_wb_cyc_o = m_wb_cyc,
-            o_m_wb_stb_o = m_wb_stb, 
-            i_m_wb_ack_i = m_wb_ack, 
-            i_m_wb_err_i = m_wb_err,
+            o_m_wb_adr_o = self.wb_mac_mux.adr, 
+            o_m_wb_sel_o = self.wb_mac_mux.sel, 
+            o_m_wb_we_o  = self.wb_mac_mux.we,
+            o_m_wb_dat_o = self.wb_mac_mux.dat_w, 
+            i_m_wb_dat_i = self.wb_mac_mux.dat_r, 
+            o_m_wb_cyc_o = self.wb_mac_mux.cyc,
+            o_m_wb_stb_o = self.wb_mac_mux.stb, 
+            i_m_wb_ack_i = self.wb_mac_mux.ack, 
+            i_m_wb_err_i = self.wb_mac_mux.err,
 
             i_mtx_clk_pad_i = phy.tx_clk, 
             o_mtxd_pad_o = phy.txd, 
@@ -369,18 +356,10 @@ class USB2AudioInterface(Elaboratable):
 
         leds = Cat([platform.request("led", i) for i in range(8)])
         m.d.comb += [
-#            leds[0].eq(usb.tx_activity_led),
-#            leds[1].eq(usb.rx_activity_led),
-#            leds[2].eq(usb.suspended),
-#            leds[3].eq(usb.reset_detected),
-            leds[4].eq(mtxerr_pad),
-            phy.mdio.o.eq(md_pad_o),
-            phy.mdio.oe.eq(md_padoe),
-            phy.resetn.eq(1)
+            leds[0].eq(wb_rst), # should lit
+            leds[1].eq(mac_int),
+            leds[2].eq(mtxerr_pad)
         ]
-
-
-
 
         # Generate our domain clocks/resets.
         m.submodules.car = platform.clock_domain_generator()
@@ -600,9 +579,4 @@ class USB2AudioInterface(Elaboratable):
 
 if __name__ == "__main__":
     os.environ["LUNA_PLATFORM"] = "arrow_deca:ArrowDECAPlatform"
-#    platform = get_appropriate_platform()
-#    path = "/home/kgotfryd/programming/packages/deca-usb2-audio-interface/gateware/eth_top.v"
-
-        
-#    top_level_cli(USB2AudioInterface, platform = platform)
     top_level_cli(USB2AudioInterface)
