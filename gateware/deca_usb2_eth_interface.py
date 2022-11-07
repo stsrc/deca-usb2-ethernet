@@ -14,8 +14,8 @@ from amlib.io.i2s        import I2STransmitter, I2SReceiver
 from amlib.stream.i2c    import I2CStreamTransmitter
 from amlib.debug.ila     import StreamILA, ILACoreParameters
 from amlib.utils         import EdgeToPulse, Timer
-from amlib.io.max7219    import SerialLEDArray
-from amlib.io.led        import NumberToSevenSegmentHex
+
+from memory import WishboneRAM
 
 from luna                import top_level_cli
 from luna.usb2           import USBDevice, USBIsochronousInMemoryEndpoint, USBIsochronousOutStreamEndpoint, USBIsochronousInStreamEndpoint
@@ -281,7 +281,7 @@ class USB2AudioInterface(Elaboratable):
         self.wb_usb_mux = Interface(addr_width = 32, data_width = 32, granularity = 32, features = { "err" })
         self.wb_mac_mux = Interface(addr_width = 32, data_width = 32, granularity = 32, features = { "err" })
         self.wb_mux_mac = Interface(addr_width = 10, data_width = 32, granularity = 32, features = { "err" })
-        self.wb_mux_ram = Interface(addr_width = 10, data_width = 32, granularity = 32, features = { "err" })
+        m.submodules.wb_ram = WishboneRAM(addr_width=10, granularity=32)
     
         m.submodules.wb_arbiter = Arbiter(addr_width = 32, data_width = 32, granularity = 32, features = { "err" })
         m.submodules.wb_decoder = Decoder(addr_width = 32, data_width = 32, granularity = 32, features = { "err" })
@@ -292,12 +292,11 @@ class USB2AudioInterface(Elaboratable):
         m.submodules.wb_arbiter.add(self.wb_mac_mux)
 
         self.wb_mux_mac.memory_map = MemoryMap(addr_width = 10, data_width = 32)
-        self.wb_mux_ram.memory_map = MemoryMap(addr_width = 10, data_width = 32)
 
         m.submodules.wb_decoder.bus._map._frozen = False;
 
         m.submodules.wb_decoder.add(self.wb_mux_mac, addr = 0x0000_0000)
-        m.submodules.wb_decoder.add(self.wb_mux_ram, addr = 0x0001_0000) 
+        m.submodules.wb_decoder.add(m.submodules.wb_ram.bus, addr = 0x0001_0000) 
 
         phy = platform.request("phy")
 
@@ -563,17 +562,6 @@ class USB2AudioInterface(Elaboratable):
 
         with m.If(~usb.suspended & i2s_transmitter.underflow_out):
             m.d.sync += underflow_count.eq(underflow_count + 1)
-
-        spi = platform.request("spi")
-        m.submodules.sevensegment = sevensegment = DomainRenamer("usb")(NumberToSevenSegmentHex(width=32))
-        m.submodules.led_display  = led_display  = DomainRenamer("usb")(SerialLEDArray(divisor=10, init_delay=24e6))
-        m.d.comb += [
-            sevensegment.number_in[0:16].eq(underflow_count),
-            sevensegment.dots_in.eq(leds),
-            *led_display.connect_to_resource(spi),
-            Cat(led_display.digits_in).eq(sevensegment.seven_segment_out),
-            led_display.valid_in.eq(1),
-        ]
 
         return m
 
