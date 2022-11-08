@@ -1,1 +1,2 @@
 Remove memory.py from this directory and use one which can be found under ./venv/lib/python3.8/site-packages/amlib/soc/memory.py
+Fix first call to ./initialize-python-environment.sh
