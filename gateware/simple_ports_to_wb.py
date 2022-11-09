@@ -36,17 +36,35 @@ class SimplePortsToWb(Elaboratable):
                 with m.If(self.rd_strb_in):
                     m.d.sync += self.bus.adr.eq(self.address_in)
                     m.d.sync += self.bus.we.eq(0)
+                    m.d.sync += self.bus.sel.eq(1)
                     m.d.sync += self.bus.cyc.eq(1)
                     m.d.sync += self.bus.stb.eq(1)
                     m.next = "READ"
+                with m.Elif(self.wr_strb_in):
+                    m.d.sync += self.bus.adr.eq(self.address_in)
+                    m.d.sync += self.bus.dat_w.eq(self.data_in)
+                    m.d.sync += self.bus.we.eq(1)
+                    m.d.sync += self.bus.sel.eq(1)
+                    m.d.sync += self.bus.cyc.eq(1)
+                    m.d.sync += self.bus.stb.eq(1)
+                    m.next = "WRITE"
             with m.State("READ"):
                 with m.If(self.bus.ack):
                     m.d.sync += self.data_out.eq(self.bus.dat_r)
                     m.d.sync += self.op_rdy_out.eq(1)
                     m.d.sync += self.bus.adr.eq(0)
                     m.d.sync += self.bus.we.eq(0)
+                    m.d.sync += self.bus.sel.eq(0)
                     m.d.sync += self.bus.cyc.eq(0)
                     m.d.sync += self.bus.stb.eq(0)
                     m.next = "IDLE"
+            with m.State("WRITE"):
+                with m.If(self.bus.ack):
+                    m.d.sync += self.op_rdy_out.eq(1)
+                    m.d.sync += self.bus.adr.eq(0)
+                    m.d.sync += self.bus.we.eq(0)
+                    m.d.sync += self.bus.sel.eq(0)
+                    m.d.sync += self.bus.cyc.eq(0)
+                    m.d.sync += self.bus.stb.eq(0)
 
         return m

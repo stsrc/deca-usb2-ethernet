@@ -19,8 +19,8 @@ class InjectData(Elaboratable):
 
     def elaborate(self, platform):
         m = Module()
-        m.submodules.simple_ports_to_wb = self.simple_ports_to_wb # where should I set CLK? TODO
-
+        m.submodules.simple_ports_to_wb = self.simple_ports_to_wb
+        # TODO: check if clock is properly assigned, should be usb_clk something
         with m.FSM(reset="IDLE"):
             with m.State("IDLE"):
                 m.d.sync += self.simple_ports_to_wb.rd_strb_in.eq(1)

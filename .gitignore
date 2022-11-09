@@ -4,3 +4,4 @@ gateware/venv
 **/obj_dir
 .ipynb_checkpoints/**
 *.swp
+*.vcd

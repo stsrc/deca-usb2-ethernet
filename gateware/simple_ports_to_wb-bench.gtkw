@@ -1,0 +1,18 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Wed Nov  9 14:28:21 2022
+[*]
+[dumpfile] "/home/kgotfryd/programming/workspace/deca-usb2-ethernet/gateware/simple_ports_to_wb.vcd"
+[dumpfile_mtime] "Wed Nov  9 14:23:55 2022"
+[dumpfile_size] 881
+[savefile] "/home/kgotfryd/programming/workspace/deca-usb2-ethernet/gateware/simple_ports_to_wb-bench.gtkw"
+[timestart] 0
+[size] 1870 1006
+[pos] 25 22
+*-14.700000 51700 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[sst_width] 497
+[signals_width] 465
+[sst_expanded] 1
+[sst_vpaned_height] 592
+[pattern_trace] 1
+[pattern_trace] 0
