@@ -12,10 +12,22 @@ __all__ = ["InjectData"]
 
 class InjectData(Elaboratable):
     def __init__(self):
-        self.bus = None
+        self.simple_ports_to_wb = SimplePortsToWb()
+
+    def get_bus(self):
+        return self.simple_ports_to_wb.bus
 
     def elaborate(self, platform):
         m = Module()
-        m.submodules.simple_ports_to_wb = SimplePortsToWb() 
-        self.bus = m.submodules.simple_ports_to_wb.bus
+        m.submodules.simple_ports_to_wb = self.simple_ports_to_wb # where should I set CLK? TODO
+
+        with m.FSM(reset="IDLE"):
+            with m.State("IDLE"):
+                m.d.sync += self.simple_ports_to_wb.rd_strb_in.eq(1)
+                m.d.sync += self.simple_ports_to_wb.address_in.eq(0)
+                m.next = "READING"
+            with m.State("READING"):
+                m.d.sync += self.simple_ports_to_wb.rd_strb_in.eq(0)
+                with m.If(self.simple_ports_to_wb.op_rdy_out):
+                    m.next = "IDLE"
         return m

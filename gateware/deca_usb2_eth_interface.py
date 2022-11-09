@@ -15,7 +15,7 @@ from amlib.stream.i2c    import I2CStreamTransmitter
 from amlib.debug.ila     import StreamILA, ILACoreParameters
 from amlib.utils         import EdgeToPulse, Timer
 
-from simple_ports_to_wb import SimplePortsToWb
+from inject_data import InjectData
 
 from memory import WishboneRAM
 
@@ -280,29 +280,28 @@ class USB2AudioInterface(Elaboratable):
         md_padoe = Signal()
         mac_int = Signal()
 
-
-        m.submodules.simple_ports_to_wb = simple_ports_to_wb = SimplePortsToWb() # where should I set CLK? TODO
-
-        with m.FSM(reset="IDLE"):
-            with m.State("IDLE"):
-                m.d.sync += simple_ports_to_wb.rd_strb_in.eq(1)
-                m.d.sync += simple_ports_to_wb.address_in.eq(0)
-                m.next = "READING"
-            with m.State("READING"):
-                m.d.sync += simple_ports_to_wb.rd_strb_in.eq(0)
-                with m.If(simple_ports_to_wb.op_rdy_out):
-                    m.next = "IDLE"
-
-        self.wb_mac_mux = Interface(addr_width = 32, data_width = 32, granularity = 32, features = { "err" })
-        self.wb_mux_mac = Interface(addr_width = 10, data_width = 32, granularity = 32, features = { "err" })
-        m.submodules.wb_ram = WishboneRAM(addr_width=10, granularity=32)
-    
-        m.submodules.wb_arbiter = Arbiter(addr_width = 32, data_width = 32, granularity = 32, features = { "err" })
-        m.submodules.wb_decoder = Decoder(addr_width = 32, data_width = 32, granularity = 32, features = { "err" })
+        self.wb_mac_mux = Interface(addr_width = 32, 
+                                    data_width = 32, 
+                                    granularity = 32, 
+                                    features = { "err" })
+        self.wb_mux_mac = Interface(addr_width = 10, 
+                                    data_width = 32, 
+                                    granularity = 32, 
+                                    features = { "err" })
+        m.submodules.inject_data = DomainRenamer("usb")(InjectData())
+        m.submodules.wb_ram = DomainRenamer("usb")(WishboneRAM(addr_width=10, granularity=32))
+        m.submodules.wb_arbiter = DomainRenamer("usb")(Arbiter(addr_width = 32, 
+                                                               data_width = 32, 
+                                                               granularity = 32, 
+                                                               features = { "err" }))
+        m.submodules.wb_decoder = DomainRenamer("usb")(Decoder(addr_width = 32, 
+                                                               data_width = 32, 
+                                                               granularity = 32, 
+                                                               features = { "err" }))
 
         m.d.comb += m.submodules.wb_arbiter.bus.connect(m.submodules.wb_decoder.bus)
 
-        m.submodules.wb_arbiter.add(m.submodules.simple_ports_to_wb.bus)
+        m.submodules.wb_arbiter.add(m.submodules.inject_data.get_bus())
         m.submodules.wb_arbiter.add(self.wb_mac_mux)
 
         self.wb_mux_mac.memory_map = MemoryMap(addr_width = 10, data_width = 32)
