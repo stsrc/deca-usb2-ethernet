@@ -32,7 +32,9 @@ class SimplePortsToWb(Elaboratable):
 
         with m.FSM(reset="IDLE"):
             with m.State("IDLE"):
-                self.op_rdy_out.eq(0)
+                m.d.sync += self.op_rdy_out.eq(0)
+                m.d.sync += self.data_out.eq(0)
+
                 with m.If(self.rd_strb_in):
                     m.d.sync += self.bus.adr.eq(self.address_in)
                     m.d.sync += self.bus.we.eq(0)
@@ -66,5 +68,6 @@ class SimplePortsToWb(Elaboratable):
                     m.d.sync += self.bus.sel.eq(0)
                     m.d.sync += self.bus.cyc.eq(0)
                     m.d.sync += self.bus.stb.eq(0)
-
+                    m.d.sync += self.bus.dat_w.eq(0)
+                    m.next = "IDLE"
         return m
