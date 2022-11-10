@@ -9,6 +9,7 @@ if __name__ == "__main__":
         yield dut.address_in.eq(0x10000000)
         yield dut.wr_strb_in.eq(1)
         yield dut.data_in.eq(0x01011010)
+        yield dut.sel_in.eq(0b1111)
         yield Tick()
         yield dut.wr_strb_in.eq(0)
         yield Tick()
@@ -20,6 +21,7 @@ if __name__ == "__main__":
     def process_rd():
         yield dut.address_in.eq(0x10000001)
         yield dut.rd_strb_in.eq(1)
+        yield dut.sel_in.eq(0b1111)
         yield Tick()
         yield dut.rd_strb_in.eq(0)
         yield Tick()

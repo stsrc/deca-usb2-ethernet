@@ -282,21 +282,23 @@ class USB2AudioInterface(Elaboratable):
 
         self.wb_mac_mux = Interface(addr_width = 32, 
                                     data_width = 32, 
-                                    granularity = 32, 
+                                    granularity = 8, 
                                     features = { "err" })
         self.wb_mux_mac = Interface(addr_width = 10, 
                                     data_width = 32, 
-                                    granularity = 32, 
+                                    granularity = 8, 
                                     features = { "err" })
         m.submodules.inject_data = DomainRenamer("usb")(InjectData())
-        m.submodules.wb_ram = DomainRenamer("usb")(WishboneRAM(addr_width=10, granularity=32))
+        m.submodules.wb_ram = DomainRenamer("usb")(WishboneRAM(addr_width=10, 
+                                                               data_width = 32, 
+                                                               granularity=8))
         m.submodules.wb_arbiter = DomainRenamer("usb")(Arbiter(addr_width = 32, 
                                                                data_width = 32, 
-                                                               granularity = 32, 
+                                                               granularity = 8, 
                                                                features = { "err" }))
         m.submodules.wb_decoder = DomainRenamer("usb")(Decoder(addr_width = 32, 
                                                                data_width = 32, 
-                                                               granularity = 32, 
+                                                               granularity = 8, 
                                                                features = { "err" }))
 
         m.d.comb += m.submodules.wb_arbiter.bus.connect(m.submodules.wb_decoder.bus)
@@ -304,7 +306,7 @@ class USB2AudioInterface(Elaboratable):
         m.submodules.wb_arbiter.add(m.submodules.inject_data.get_bus())
         m.submodules.wb_arbiter.add(self.wb_mac_mux)
 
-        self.wb_mux_mac.memory_map = MemoryMap(addr_width = 10, data_width = 32)
+        self.wb_mux_mac.memory_map = MemoryMap(addr_width = 12, data_width = 8)
 
         m.submodules.wb_decoder.bus._map._frozen = False;
 

@@ -11,7 +11,7 @@ from amaranth_soc.wishbone.bus import Interface
 __all__ = ["SimplePortsToWb"]
 
 class SimplePortsToWb(Elaboratable):
-    def __init__(self, *, addr_width=32, data_width=32, granularity=32):
+    def __init__(self, *, addr_width=32, data_width=32, granularity=8):
         self.bus_addr_width = addr_width
         self.bus_data_width = data_width
         self.bus_granularity = granularity
@@ -23,6 +23,7 @@ class SimplePortsToWb(Elaboratable):
         self.address_in = Signal(addr_width)
         self.data_in = Signal(data_width)
         self.data_out = Signal(data_width)
+        self.sel_in = Signal(data_width // granularity)
         self.rd_strb_in = Signal()
         self.wr_strb_in = Signal()
         self.op_rdy_out = Signal()
@@ -38,7 +39,7 @@ class SimplePortsToWb(Elaboratable):
                 with m.If(self.rd_strb_in):
                     m.d.sync += self.bus.adr.eq(self.address_in)
                     m.d.sync += self.bus.we.eq(0)
-                    m.d.sync += self.bus.sel.eq(1)
+                    m.d.sync += self.bus.sel.eq(self.sel_in)
                     m.d.sync += self.bus.cyc.eq(1)
                     m.d.sync += self.bus.stb.eq(1)
                     m.next = "READ"
@@ -46,7 +47,7 @@ class SimplePortsToWb(Elaboratable):
                     m.d.sync += self.bus.adr.eq(self.address_in)
                     m.d.sync += self.bus.dat_w.eq(self.data_in)
                     m.d.sync += self.bus.we.eq(1)
-                    m.d.sync += self.bus.sel.eq(1)
+                    m.d.sync += self.bus.sel.eq(self.sel_in)
                     m.d.sync += self.bus.cyc.eq(1)
                     m.d.sync += self.bus.stb.eq(1)
                     m.next = "WRITE"
