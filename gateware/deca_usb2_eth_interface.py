@@ -265,9 +265,7 @@ class USB2AudioInterface(Elaboratable):
 
         leds = Cat([platform.request("led", i) for i in range(8)])
         m.d.comb += [
-            leds[0].eq(m.submodules.eth_interface.wb_rst), # should lit
-#            leds[1].eq(mac_int),
-#            leds[2].eq(mtxerr_pad)
+                leds[0].eq(m.submodules.eth_interface.inject_data.leds)
         ]
 
         # Generate our domain clocks/resets.
