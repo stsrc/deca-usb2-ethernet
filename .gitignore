@@ -5,3 +5,4 @@ gateware/venv
 .ipynb_checkpoints/**
 *.swp
 *.vcd
+crc32-calc

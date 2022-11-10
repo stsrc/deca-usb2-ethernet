@@ -13,6 +13,14 @@ __all__ = ["InjectData"]
 class InjectData(Elaboratable):
     def __init__(self):
         self.simple_ports_to_wb = SimplePortsToWb()
+        self.arp_packet = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0a, 0x0a,
+                           0x0a, 0x0a, 0x0a, 0x0a, 0x08, 0x06, 0x00, 0x01,
+                           0x08, 0x00, 0x06, 0x04, 0x00, 0x01, 0x0a, 0x0a,
+                           0x0a, 0x0a, 0x0a, 0x0a,  192,  168,    0,   66,
+                              0,    0,    0,    0,    0,    0,  192,  168,
+                              0,  135,    0,    0,    0,    0,    0,    0,
+                              0,    0,    0,    0,    0,    0,    0,    0,
+                              0,    0,    0,    0, 0x9e, 0x59, 0x7b, 0xf9]
 
     def get_bus(self):
         return self.simple_ports_to_wb.bus
