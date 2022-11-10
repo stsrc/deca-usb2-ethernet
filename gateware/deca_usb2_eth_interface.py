@@ -7,17 +7,12 @@ import os
 from amaranth            import *
 from amaranth.lib.cdc    import FFSynchronizer
 
-from amaranth_soc.wishbone.bus import Interface, Decoder, Arbiter
-from amaranth_soc.memory import MemoryMap
-
 from amlib.io.i2s        import I2STransmitter, I2SReceiver
 from amlib.stream.i2c    import I2CStreamTransmitter
 from amlib.debug.ila     import StreamILA, ILACoreParameters
 from amlib.utils         import EdgeToPulse, Timer
 
-from inject_data import InjectData
-
-from memory import WishboneRAM
+from eth_interface import EthInterface
 
 from luna                import top_level_cli
 from luna.usb2           import USBDevice, USBIsochronousInMemoryEndpoint, USBIsochronousOutStreamEndpoint, USBIsochronousInStreamEndpoint
@@ -259,120 +254,20 @@ class USB2AudioInterface(Elaboratable):
         self.create_input_streaming_interface(c, nr_channels=self.NR_CHANNELS, alt_setting_nr=1, channel_config=0x3)
 
     def elaborate(self, platform):
-        prefix = "./ethmac/trunk/rtl/verilog/"
-        paths = { "eth_clockgen.v", "eth_cop.v", "eth_crc.v", "eth_fifo.v", "eth_maccontrol.v",
-                  "ethmac_defines.v", "eth_macstatus.v", "ethmac.v", "eth_miim.v", "eth_outputcontrol.v",
-                  "eth_random.v", "eth_receivecontrol.v", "eth_registers.v", "eth_register.v",
-                  "eth_rxaddrcheck.v", "eth_rxcounters.v", "eth_rxethmac.v", "eth_rxstatem.v",
-                  "eth_shiftreg.v", "eth_spram_256x32.v", "eth_top.v", "eth_transmitcontrol.v",
-                  "eth_txcounters.v", "eth_txethmac.v", "eth_txstatem.v", "eth_wishbone.v", "timescale.v"}
-
-        for path in paths:
-            content = open(prefix + path, "r")
-            platform.add_file(prefix + path, content)
 
         m = Module()
 
-        wb_clk = Signal()
-        wb_rst = Signal()
-        mtxerr_pad = Signal()
-        md_pad_o = Signal()
-        md_padoe = Signal()
-        mac_int = Signal()
-
-        self.wb_mac_mux = Interface(addr_width = 32, 
-                                    data_width = 32, 
-                                    granularity = 8, 
-                                    features = { "err" })
-        self.wb_mux_mac = Interface(addr_width = 10, 
-                                    data_width = 32, 
-                                    granularity = 8, 
-                                    features = { "err" })
-        m.submodules.inject_data = DomainRenamer("usb")(InjectData())
-        m.submodules.wb_ram = DomainRenamer("usb")(WishboneRAM(addr_width=10, 
-                                                               data_width = 32, 
-                                                               granularity=8))
-        m.submodules.wb_arbiter = DomainRenamer("usb")(Arbiter(addr_width = 32, 
-                                                               data_width = 32, 
-                                                               granularity = 8, 
-                                                               features = { "err" }))
-        m.submodules.wb_decoder = DomainRenamer("usb")(Decoder(addr_width = 32, 
-                                                               data_width = 32, 
-                                                               granularity = 8, 
-                                                               features = { "err" }))
-
-        m.d.comb += m.submodules.wb_arbiter.bus.connect(m.submodules.wb_decoder.bus)
-
-        m.submodules.wb_arbiter.add(m.submodules.inject_data.get_bus())
-        m.submodules.wb_arbiter.add(self.wb_mac_mux)
-
-        self.wb_mux_mac.memory_map = MemoryMap(addr_width = 12, data_width = 8)
-
-        m.submodules.wb_decoder.bus._map._frozen = False;
-
-        m.submodules.wb_decoder.add(self.wb_mux_mac, addr = 0x0000_0000)
-        m.submodules.wb_decoder.add(m.submodules.wb_ram.bus, addr = 0x0001_0000) 
-
-        phy = platform.request("phy")
-
+        m.submodules.eth_interface = DomainRenamer("usb")(EthInterface())
         m.d.comb += [
-            wb_clk.eq(ClockSignal("usb")),
-            wb_rst.eq(ResetSignal("usb")),
-            phy.resetn.eq(~wb_rst),
-            phy.mdio.o.eq(md_pad_o),
-            phy.mdio.oe.eq(md_padoe)
+            m.submodules.eth_interface.wb_clk.eq(ClockSignal("usb")),
+            m.submodules.eth_interface.wb_rst.eq(ResetSignal("usb"))
         ]
-
-        m.submodules.mac = Instance("eth_top",
-            i_wb_clk_i = wb_clk, # testbench shows 40MHz as a clock
-            i_wb_rst_i = wb_rst, # active high!
-            i_wb_dat_i = self.wb_mux_mac.dat_w,
-            o_wb_dat_o = self.wb_mux_mac.dat_r,
-
-            i_wb_adr_i = self.wb_mux_mac.adr, 
-            i_wb_sel_i = self.wb_mux_mac.sel, 
-            i_wb_we_i  = self.wb_mux_mac.we, 
-            i_wb_cyc_i = self.wb_mux_mac.cyc, 
-            i_wb_stb_i = self.wb_mux_mac.stb, 
-            o_wb_ack_o = self.wb_mux_mac.ack, 
-            o_wb_err_o = self.wb_mux_mac.err,
-
-            o_m_wb_adr_o = self.wb_mac_mux.adr, 
-            o_m_wb_sel_o = self.wb_mac_mux.sel, 
-            o_m_wb_we_o  = self.wb_mac_mux.we,
-            o_m_wb_dat_o = self.wb_mac_mux.dat_w, 
-            i_m_wb_dat_i = self.wb_mac_mux.dat_r, 
-            o_m_wb_cyc_o = self.wb_mac_mux.cyc,
-            o_m_wb_stb_o = self.wb_mac_mux.stb, 
-            i_m_wb_ack_i = self.wb_mac_mux.ack, 
-            i_m_wb_err_i = self.wb_mac_mux.err,
-
-            i_mtx_clk_pad_i = phy.tx_clk, 
-            o_mtxd_pad_o = phy.txd, 
-            o_mtxen_pad_o = phy.tx_en, 
-            o_mtxerr_pad_o = mtxerr_pad,
-
-            i_mrx_clk_pad_i = phy.rx_clk, 
-            i_mrxd_pad_i = phy.rxd, 
-            i_mrxdv_pad_i = phy.rx_dv, 
-            i_mrxerr_pad_i = phy.rx_er, 
-
-            i_mcoll_pad_i = phy.col, 
-            i_mcrs_pad_i = phy.crs,
-
-            o_mdc_pad_o = phy.mdc, 
-            i_md_pad_i = phy.mdio.i, 
-            o_md_pad_o = md_pad_o, 
-            o_md_padoe_o = md_padoe,
-
-            o_int_o = mac_int
-        )
 
         leds = Cat([platform.request("led", i) for i in range(8)])
         m.d.comb += [
-            leds[0].eq(wb_rst), # should lit
-            leds[1].eq(mac_int),
-            leds[2].eq(mtxerr_pad)
+            leds[0].eq(m.submodules.eth_interface.wb_rst), # should lit
+#            leds[1].eq(mac_int),
+#            leds[2].eq(mtxerr_pad)
         ]
 
         # Generate our domain clocks/resets.
