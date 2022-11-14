@@ -257,16 +257,24 @@ class USB2AudioInterface(Elaboratable):
 
         m = Module()
 
-        m.submodules.eth_interface = DomainRenamer("usb")(EthInterface())
+        m.submodules.eth_interface = eth_interface =DomainRenamer("usb")(EthInterface())
+
+        buttons = platform.request("button")
+
+        resetsignal = Signal()
+
+        print(buttons)
         m.d.comb += [
             m.submodules.eth_interface.wb_clk.eq(ClockSignal("usb")),
-            m.submodules.eth_interface.wb_rst.eq(ResetSignal("usb"))
+            m.submodules.eth_interface.wb_rst.eq(resetsignal),
+            ResetSignal("usb").eq(resetsignal)
         ]
 
+        m.d.sync += resetsignal.eq(buttons[0])
+        
+
         leds = Cat([platform.request("led", i) for i in range(8)])
-        m.d.comb += [
-                leds[0].eq(m.submodules.eth_interface.inject_data.leds)
-        ]
+        m.d.comb += leds.eq(eth_interface.leds)
 
         # Generate our domain clocks/resets.
         m.submodules.car = platform.clock_domain_generator()

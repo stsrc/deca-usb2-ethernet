@@ -308,7 +308,7 @@ module eth_wishbone
    ,
    dbg_dat0
 `endif
-
+//   , leds
 
    );
 
@@ -424,6 +424,7 @@ input [`ETH_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i; // bist chain shift control
    output [31:0]                       dbg_dat0;
 `endif
 
+//output [7:0] leds;
 
 reg TxB_IRQ;
 reg TxE_IRQ;
@@ -592,7 +593,6 @@ reg  [`ETH_BURST_CNT_WIDTH-1:0] tx_burst_cnt;
 
 wire ReadTxDataFromMemory_2;
 wire tx_burst;
-
 wire [31:0] TxData_wb;
 wire ReadTxDataFromFifo_wb;
 
@@ -626,6 +626,7 @@ reg [1:0]  TxPointerLSB_rst;
 reg [31:2] RxPointerMSB;
 reg [1:0]  RxPointerLSB_rst;
 
+//reg [7:0] leds;
 wire RxBurstAcc;
 wire RxWordAcc;
 wire RxHalfAcc;
@@ -821,7 +822,6 @@ begin
     end
 end
 
-
 // Delayed stage signals
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
@@ -832,12 +832,14 @@ begin
       TxEn_q <= 1'b0;
       r_TxEn_q <= 1'b0;
       r_RxEn_q <= 1'b0;
+//      leds <= 8'b00000000;
     end
   else
     begin
       WbEn_q <= WbEn;
       RxEn_q <= RxEn;
       TxEn_q <= TxEn;
+//      leds <= {7'b1111000, r_TxEn};
       r_TxEn_q <= r_TxEn;
       r_RxEn_q <= r_RxEn;
     end

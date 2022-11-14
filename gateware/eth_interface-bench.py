@@ -6,6 +6,7 @@ if __name__ == "__main__":
     dut = EthInterface(simulation=True)
 
     def process():
+        yield dut.wb_mux_mac.ack.eq(1)
         for _ in range(1000):
             yield Tick()
 

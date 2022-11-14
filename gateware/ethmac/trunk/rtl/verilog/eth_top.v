@@ -268,7 +268,7 @@ module eth_top
   // MIIM
   mdc_pad_o, md_pad_i, md_pad_o, md_padoe_o,
 
-  int_o
+  int_o, leds
 
   // Bist
 `ifdef ETH_BIST
@@ -346,7 +346,7 @@ output          md_pad_o;      // MII data output (to I/O cell)
 output          md_padoe_o;    // MII data output enable (to I/O cell)
 
 output          int_o;         // Interrupt output
-
+output [7:0] leds;
 // Bist
 `ifdef ETH_BIST
 input   mbist_si_i;       // bist scan serial in
@@ -1113,6 +1113,7 @@ wishbone
   .ReceivedPacketGood(ReceivedPacketGood),
   .AddressMiss(AddressMiss),
   .ReceivedPauseFrm(ReceivedPauseFrm)
+//  ,.leds(leds)
   
 `ifdef ETH_BIST
   ,
@@ -1126,7 +1127,7 @@ wishbone
 `endif
 
 );
-
+assign leds = r_TxBDNum;
 assign m_wb_adr_o = {m_wb_adr_tmp, 2'h0};
 
 // Connecting MacStatus module

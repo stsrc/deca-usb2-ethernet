@@ -14,8 +14,11 @@ class EthInterface(Elaboratable):
     def __init__(self, simulation=False):
         self.wb_clk = Signal()
         self.wb_rst = Signal()
-        self.inject_data = InjectData()
+        self.inject_data = InjectData(simulation)
         self.simulation = simulation
+        self.leds = Signal(8)
+        self.wb_mac_mux = Interface(addr_width = 32, data_width = 32, granularity = 8, 
+                                    features = { "err" })
     def elaborate(self, platform):
         m = Module()
 
@@ -37,8 +40,7 @@ class EthInterface(Elaboratable):
         md_padoe = Signal()
         mac_int = Signal()
 
-        self.wb_mac_mux = Interface(addr_width = 32, data_width = 32, granularity = 8, 
-                                    features = { "err" })
+
         self.wb_mux_mac = Interface(addr_width = 10, data_width = 32, granularity = 8, 
                                     features = { "err" })
         m.submodules.inject_data = self.inject_data
@@ -57,19 +59,41 @@ class EthInterface(Elaboratable):
 
         m.submodules.wb_decoder.bus._map._frozen = False;
 
-        m.submodules.wb_decoder.add(self.wb_mux_mac, addr = 0x0000_0000)
-        m.submodules.wb_decoder.add(m.submodules.wb_ram.bus, addr = 0x0001_0000) 
+        m.submodules.wb_decoder.add(self.wb_mux_mac, addr = 0x00000000)
+        m.submodules.wb_decoder.add(m.submodules.wb_ram.bus, addr = 0x10000000) 
+
+        m.submodules.wb_decoder.bus._map._frozen = True;
 
         if not self.simulation:
-
             phy = platform.request("phy")
 
             m.d.comb += [
-                phy.resetn.eq(~self.wb_rst),
+                phy.resetn.eq(self.inject_data.phy_resetn),
                 phy.mdio.o.eq(md_pad_o),
                 phy.mdio.oe.eq(md_padoe)
             ]
 
+#            with m.If(self.wb_mac_mux.adr != 0):
+#                m.d.sync += self.leds.eq(self.wb_mac_mux.adr[0:7])
+
+#            with m.If(self.wb_mac_mux.adr != 0):
+#                with m.If(self.wb_mac_mux.ack):
+#                    m.d.sync += self.leds.eq(self.wb_mac_mux.dat_r[0:7])
+
+            with m.If(mac_int):
+                m.d.comb += self.leds.eq(0b10101010)
+
+#            m.d.comb += [
+#                self.leds[0].eq(self.wb_mux_mac.cyc),
+#                self.leds[1].eq(self.wb_mux_mac.stb),
+#                self.leds[2].eq(self.wb_mux_mac.we),
+#                self.leds[3].eq(self.wb_clk),
+#                self.leds[4].eq(self.wb_mux_mac.ack),
+#                self.leds[5].eq(phy.tx_clk),
+#                self.leds[6].eq(phy.rx_clk)
+#                self.leds[0].eq(phy.col),
+#                self.leds[1].eq(phy.crs)
+#            ]
 
             m.submodules.mac = Instance("eth_top",
                 i_wb_clk_i = self.wb_clk, # testbench shows 40MHz as a clock
@@ -114,6 +138,7 @@ class EthInterface(Elaboratable):
                 o_md_padoe_o = md_padoe,
 
                 o_int_o = mac_int
+#                ,o_leds = self.leds
             )
 
         return m

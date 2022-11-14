@@ -27,6 +27,7 @@ class SimplePortsToWb(Elaboratable):
         self.rd_strb_in = Signal()
         self.wr_strb_in = Signal()
         self.op_rdy_out = Signal()
+        self.leds = Signal(8)
 
     def elaborate(self, platform):
         m = Module()
@@ -35,7 +36,7 @@ class SimplePortsToWb(Elaboratable):
             with m.State("IDLE"):
                 m.d.sync += self.op_rdy_out.eq(0)
                 m.d.sync += self.data_out.eq(0)
-
+                m.d.sync += self.leds.eq(1)
                 with m.If(self.rd_strb_in):
                     m.d.sync += self.bus.adr.eq(self.address_in)
                     m.d.sync += self.bus.we.eq(0)
@@ -52,6 +53,7 @@ class SimplePortsToWb(Elaboratable):
                     m.d.sync += self.bus.stb.eq(1)
                     m.next = "WRITE"
             with m.State("READ"):
+                m.d.sync += self.leds.eq(2)
                 with m.If(self.bus.ack):
                     m.d.sync += self.data_out.eq(self.bus.dat_r)
                     m.d.sync += self.op_rdy_out.eq(1)
@@ -62,6 +64,7 @@ class SimplePortsToWb(Elaboratable):
                     m.d.sync += self.bus.stb.eq(0)
                     m.next = "IDLE"
             with m.State("WRITE"):
+                m.d.sync += self.leds.eq(3)
                 with m.If(self.bus.ack):
                     m.d.sync += self.op_rdy_out.eq(1)
                     m.d.sync += self.bus.adr.eq(0)
