@@ -6,3 +6,12 @@ gateware/venv
 *.swp
 *.vcd
 crc32-calc
+*.mod
+*.mod.c
+*.o
+*.ko
+*.ko.cmd
+*.symvers
+*.order
+*.o.cmd
+*.mod.cmd
