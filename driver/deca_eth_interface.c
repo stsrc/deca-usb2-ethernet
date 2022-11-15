@@ -46,7 +46,7 @@ static int deca_ethintf_probe(struct usb_interface *intf,
 	struct net_device *netdev;
 	struct deca_ethintf *deca;
 
-	printk(KERN_INFO "%s():%d", __FUNCTION__, __LINE__);
+	printk(KERN_INFO "%s():%d\n", __FUNCTION__, __LINE__);
 
 	netdev = alloc_etherdev(sizeof(struct deca_ethintf));
 	if (!netdev) {
@@ -63,10 +63,26 @@ static int deca_ethintf_probe(struct usb_interface *intf,
 	return 0;
 }
 
+static void deca_ethintf_disconnect(struct usb_interface *intf)
+{
+	struct deca_ethintf *deca = usb_get_intfdata(intf);
+	if (deca) {
+		free_netdev(deca->netdev);
+	}
+}
+
+static int deca_ethintf_suspend(struct usb_interface *intf,
+				pm_message_t message)
+{
+	return 0;
+}
+
 static struct usb_driver deca_ethintf = {
 	.name = driver_name,
 	.id_table = deca_ethintf_table,
-	.probe = deca_ethintf_probe
+	.probe = deca_ethintf_probe,
+	.disconnect = deca_ethintf_disconnect,
+	.suspend = deca_ethintf_suspend
 };
 
 module_usb_driver(deca_ethintf);
