@@ -6,6 +6,51 @@ from usb_protocol.types                       import USBRequestType, USBRequestR
 from usb_protocol.types.descriptors.uac2      import AudioClassSpecificRequestCodes
 from luna.gateware.usb.stream                 import USBInStreamInterface
 
+class VendorRequestHandlers(USBRequestHandler):
+    def __init__(self):
+        super().__init__()
+        self.leds = Signal(8)
+        self.count = Signal(2)
+
+    def elaborate(self, platform):
+        m = Module()
+
+        m.submodules.transmitter = transmitter = \
+            StreamSerializer(data_length=1, domain="usb", stream_type=USBInStreamInterface, max_length_width=1)
+
+        interface = self.interface
+        setup = self.interface.setup
+
+        with m.If(setup.type == USBRequestType.VENDOR):
+            with m.If(setup.request == 0x05):
+                with m.If(setup.is_in_request): #REG RD
+                    m.d.comb += transmitter.stream.attach(self.interface.tx)
+                    m.d.comb += [
+                        Cat(transmitter.data).eq(0b01010101),
+                        transmitter.max_length.eq(setup.length)
+                        ]
+
+                    with m.If(interface.data_requested):
+                        m.d.comb += transmitter.start.eq(1)
+
+                    with m.If(interface.status_requested):
+                        m.d.comb += interface.handshakes_out.ack.eq(1)
+
+
+                with m.Else():                          #REG WR
+                    with m.If(interface.rx.valid & (self.leds == 0)):
+                        m.d.usb += self.leds.eq(interface.rx.payload)
+
+                    # Always ACK the data out...
+                    with m.If(interface.rx_ready_for_response):
+                        m.d.comb += interface.handshakes_out.ack.eq(1)
+
+                    # ... and accept whatever the request was.
+                    with m.If(interface.status_requested):
+                        m.d.comb += self.send_zlp()
+
+        return m
+
 class UAC2RequestHandlers(USBRequestHandler):
     """ request handlers to implement UAC2 functionality. """
     def __init__(self):

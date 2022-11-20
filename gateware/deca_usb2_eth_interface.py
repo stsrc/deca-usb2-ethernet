@@ -31,7 +31,7 @@ from luna.gateware.usb.usb2.request           import USBRequestHandler, StallOnl
 
 from usb_stream_to_channels import USBStreamToChannels
 from channels_to_usb_stream import ChannelsToUSBStream
-from requesthandlers        import UAC2RequestHandlers
+from requesthandlers        import UAC2RequestHandlers, VendorRequestHandlers
 from audio_init             import AudioInit
 
 class USB2AudioInterface(Elaboratable):
@@ -122,7 +122,6 @@ class USB2AudioInterface(Elaboratable):
         
 
         leds = Cat([platform.request("led", i) for i in range(8)])
-        m.d.comb += leds.eq(eth_interface.leds)
 
         # Generate our domain clocks/resets.
         m.submodules.car = platform.clock_domain_generator()
@@ -160,14 +159,16 @@ class USB2AudioInterface(Elaboratable):
                           & (setup.request == USBStandardRequests.SET_INTERFACE)
         ])
 
-        # Attach our class request handlers.
+        vendor_request_handler = VendorRequestHandlers()
+        control_ep.add_request_handler(vendor_request_handler)
+        m.d.comb += leds.eq(vendor_request_handler.leds)
+
 #        class_request_handler = UAC2RequestHandlers()
 #        control_ep.add_request_handler(class_request_handler)
 
-        # Attach class-request handlers that stall any vendor or reserved requests,
+        # Attach class-request handlers that stall any reserved requests,
         # as we don't have or need any.
         stall_condition = lambda setup : \
-            (setup.type == USBRequestType.VENDOR) | \
             (setup.type == USBRequestType.RESERVED)
         control_ep.add_request_handler(StallOnlyRequestHandler(stall_condition))
 
