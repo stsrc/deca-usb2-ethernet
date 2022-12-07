@@ -30,6 +30,7 @@ from luna.gateware.usb.usb2.endpoints.stream  import USBMultibyteStreamInEndpoin
 from luna.gateware.usb.usb2.request           import USBRequestHandler, StallOnlyRequestHandler
 
 from usb_stream_to_channels import USBStreamToChannels
+from usb_stream_test import USBStreamToTest
 from channels_to_usb_stream import ChannelsToUSBStream
 from requesthandlers        import UAC2RequestHandlers, VendorRequestHandlers
 from audio_init             import AudioInit
@@ -161,7 +162,7 @@ class USB2AudioInterface(Elaboratable):
 
         vendor_request_handler = VendorRequestHandlers()
         control_ep.add_request_handler(vendor_request_handler)
-        m.d.comb += leds.eq(vendor_request_handler.leds)
+#        m.d.comb += leds.eq(vendor_request_handler.leds)
 
 #        class_request_handler = UAC2RequestHandlers()
 #        control_ep.add_request_handler(class_request_handler)
@@ -186,6 +187,18 @@ class USB2AudioInterface(Elaboratable):
             endpoint_number=3, # EP 3 OUT BULK
             max_packet_size=512)
         usb.add_endpoint(ep3_out)
+
+        count = Signal(8)
+#        with m.If((ep3_out.interface.rx.valid == 1) & (ep3_out.interface.rx.next == 1) & (ep3_out.interface.rx.payload == 0b01010101)):
+#        with m.If((ep3_out.interface.rx.valid == 1) & (ep3_out.interface.rx.next == 1)):
+#            m.d.usb += count.eq(count + 1)
+
+#        m.d.comb += leds.eq(count)
+
+        m.submodules.usb_to_test = usb_to_test = DomainRenamer("usb")(USBStreamToTest())        
+        m.d.comb += usb_to_test.usb_stream_in.stream_eq(ep3_out.stream)
+
+        m.d.comb += leds.eq(usb_to_test.leds_out)
 
         # calculate bytes in frame for audio in
         audio_in_frame_bytes = Signal(4, reset=15)
