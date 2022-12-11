@@ -141,36 +141,37 @@ static void write_bulk_callback(struct urb *urb)
         netif_wake_queue(dev->netdev);
 }
 
-static char *data = NULL;
-#define DATA_SIZ 31
+uint32_t packet[] = {0xffffffff, 0xffff0a0a,
+		     0x0a0a0a0a, 0x08060001,
+                     0x08000604, 0x00010a0a,
+                     0x0a0a0a0a, 0xc0a80042,
+                     0x00000000, 0x0000c0a8,
+                     0x00870000, 0x00000000,
+                     0x00000000, 0x00000000,
+                     0x00000000};
+
+
+char *data;
 static netdev_tx_t deca_ethintf_start_xmit(struct sk_buff *skb,
                                            struct net_device *netdev)
 {
         struct deca_ethintf *dev = netdev_priv(netdev);
         int count, res;
-	static int once = 0;
+	static int counter = 0;
 
         netif_stop_queue(netdev);
-        //count = (skb->len < 60) ? 60 : skb->len;
-        //count = (count & 0x3f) ? count : count + 1;
         dev->tx_skb = skb;
+	count = skb->len;
 
-	//TODO: remove following line
-	memset(skb->data, 0x55, skb->len);
-	printk(KERN_ERR "skb->len = %u\n", skb->len);
-
-	if (!once) {
-		data = kmalloc(DATA_SIZ, GFP_KERNEL);
-//		memset(data, 0b01010101, DATA_SIZ);
-		memset(data, 0b10101010, DATA_SIZ);
-	        usb_fill_bulk_urb(dev->tx_urb, dev->usbdev, usb_sndbulkpipe(dev->usbdev, 3),
-		              data, DATA_SIZ, write_bulk_callback, dev);
-		once = 1;
-	} else {
+	if (counter == 4)
 		return NETDEV_TX_BUSY;
-	        usb_fill_bulk_urb(dev->tx_urb, dev->usbdev, usb_sndbulkpipe(dev->usbdev, 3),
-		              skb->data, count, write_bulk_callback, dev);
-	}
+
+	counter++;
+
+//	data = kmalloc(sizeof(packet), GFP_KERNEL);
+//	memcpy(data, packet, sizeof(packet));
+	usb_fill_bulk_urb(dev->tx_urb, dev->usbdev, usb_sndbulkpipe(dev->usbdev, 3),
+                          skb->data, count, write_bulk_callback, dev);
         if ((res = usb_submit_urb(dev->tx_urb, GFP_ATOMIC))) {
                 /* Can we get/handle EPIPE here? */
                 if (res == -ENODEV)
@@ -284,7 +285,7 @@ static const struct ethtool_ops ops = {
 
 static void set_ethernet_addr(struct deca_ethintf *dev)
 {
-	u8 node_id[ETH_ALEN] = {0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa};
+	u8 node_id[ETH_ALEN] = {0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a};
 	ether_addr_copy(dev->netdev->dev_addr, node_id);
 }
 

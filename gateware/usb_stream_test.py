@@ -26,7 +26,7 @@ class USBStreamToTest(Elaboratable):
 #            self.usb_stream_in.ready.eq(usb_valid),
         ]
 
-        with m.If(usb_valid):
-            m.d.sync += self.leds_out.eq(usb_payload)
+        with m.If(usb_last):
+            m.d.sync += self.leds_out.eq(self.leds_out + 1)
 
         return m

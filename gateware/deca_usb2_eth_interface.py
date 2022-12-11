@@ -106,13 +106,12 @@ class USB2AudioInterface(Elaboratable):
 
         m = Module()
 
-        m.submodules.eth_interface = eth_interface =DomainRenamer("usb")(EthInterface())
+        m.submodules.eth_interface = eth_interface = DomainRenamer("usb")(EthInterface())
 
         buttons = platform.request("button")
 
         resetsignal = Signal()
 
-        print(buttons)
         m.d.comb += [
             m.submodules.eth_interface.wb_clk.eq(ClockSignal("usb")),
             m.submodules.eth_interface.wb_rst.eq(resetsignal),
@@ -188,17 +187,9 @@ class USB2AudioInterface(Elaboratable):
             max_packet_size=512)
         usb.add_endpoint(ep3_out)
 
-        count = Signal(8)
-#        with m.If((ep3_out.interface.rx.valid == 1) & (ep3_out.interface.rx.next == 1) & (ep3_out.interface.rx.payload == 0b01010101)):
-#        with m.If((ep3_out.interface.rx.valid == 1) & (ep3_out.interface.rx.next == 1)):
-#            m.d.usb += count.eq(count + 1)
+        m.d.comb += eth_interface.inject_data.usb_stream_in.stream_eq(ep3_out.stream)
 
-#        m.d.comb += leds.eq(count)
-
-        m.submodules.usb_to_test = usb_to_test = DomainRenamer("usb")(USBStreamToTest())        
-        m.d.comb += usb_to_test.usb_stream_in.stream_eq(ep3_out.stream)
-
-        m.d.comb += leds.eq(usb_to_test.leds_out)
+        m.d.comb += leds.eq(eth_interface.inject_data.leds)
 
         # calculate bytes in frame for audio in
         audio_in_frame_bytes = Signal(4, reset=15)

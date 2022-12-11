@@ -5,7 +5,7 @@ from amaranth            import *
 from amaranth_soc.wishbone.bus import Interface, Decoder, Arbiter
 from amaranth_soc.memory import MemoryMap
 
-from inject_data import InjectData
+from inject_data2 import InjectData2
 
 from memory import WishboneRAM
 
@@ -14,7 +14,7 @@ class EthInterface(Elaboratable):
     def __init__(self, simulation=False):
         self.wb_clk = Signal()
         self.wb_rst = Signal()
-        self.inject_data = InjectData(simulation)
+        self.inject_data = InjectData2(simulation)
         self.simulation = simulation
         self.leds = Signal(8)
         self.wb_mac_mux = Interface(addr_width = 32, data_width = 32, granularity = 8, 
@@ -44,7 +44,12 @@ class EthInterface(Elaboratable):
         self.wb_mux_mac = Interface(addr_width = 10, data_width = 32, granularity = 8, 
                                     features = { "err" })
         m.submodules.inject_data = self.inject_data
-        m.submodules.wb_ram = WishboneRAM(addr_width=10, data_width = 32, granularity=8)
+
+        if self.simulation:
+            m.submodules.wb_ram = WishboneRAM(addr_width=10, data_width = 32, granularity=8)
+        else:
+            m.submodules.wb_ram = WishboneRAM(addr_width=16, data_width = 32, granularity=8) # will be addr_width=15
+
         m.submodules.wb_arbiter = Arbiter(addr_width = 32, data_width = 32, granularity = 8, 
                                           features = { "err" })
         m.submodules.wb_decoder = Decoder(addr_width = 32, data_width = 32, granularity = 8, 
