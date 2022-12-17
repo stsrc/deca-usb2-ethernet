@@ -39,7 +39,7 @@ class WishboneRAM(Elaboratable):
         return [int.from_bytes(word, byteorder=byteorder) for word in words]
 
     def __init__(self, *, addr_width, data_width=32, granularity=8, init=None,
-            read_only=False, byteorder="little", name="ram"):
+            read_only=False, byteorder="little", name="ram", simulate):
         """
         Parameters:
             addr_width  -- The -bus- address width for the relevant memory. Determines the size
@@ -86,6 +86,8 @@ class WishboneRAM(Elaboratable):
         self.bus.memory_map._frozen = False
         self.bus.memory_map.add_resource(self, name=name, size=2 ** addr_width)
 
+        self.simulate = simulate
+
     def elaborate(self, platform):
         m = Module()
 
@@ -94,7 +96,7 @@ class WishboneRAM(Elaboratable):
 
         # Create the the memory used to store our data.
         memory_depth = 2 ** self.local_addr_width
-        memory = Memory(width=self.data_width, depth=memory_depth, init=initial_value, name=self.name)
+        memory = Memory(width=self.data_width, depth=memory_depth, init=initial_value, name=self.name, simulate=self.simulate)
 
         # Grab a reference to the bits of our Wishbone bus that are relevant to us.
         local_address_bits = self.bus.adr[:self.local_addr_width]

@@ -126,7 +126,7 @@ class InjectData2(Elaboratable):
 
             with m.State("IDLE"):
                 m.d.sync += self.leds.eq(11)
-                with m.If(usb_valid & ((self.head + 1) % 8 != self.tail)):
+                with m.If(usb_valid & ((self.head + 1) % 32 != self.tail)):
                     m.next = "WRITE_DATA_PREPARE"
 
             with m.State("WRITE_DATA_PREPARE"):
@@ -158,7 +158,7 @@ class InjectData2(Elaboratable):
                 m.next = "WRITE_DATA_WAIT"
 
             with m.State("WRITE_DATA_WAIT"):
-                m.d.sync += self.leds.eq(self.head)
+                m.d.sync += self.leds.eq(14)
                 m.d.sync += payload.eq(0)
                 m.d.sync += self.simple_ports_to_wb.wr_strb_in.eq(0)
                 with m.If(self.simple_ports_to_wb.op_rdy_out & (~self.end)):
@@ -190,7 +190,7 @@ class InjectData2(Elaboratable):
             with m.State("WRITE_ETHMAC_TX_BUF_DESC_1"):
                 m.d.sync += self.leds.eq(17)
                 m.d.sync += self.simple_ports_to_wb.wr_strb_in.eq(1)
-                with m.If(self.head != 7):
+                with m.If(self.head != 31):
                     m.d.sync += self.simple_ports_to_wb.data_in.eq((counter << 16) | 0xc000)
                 with m.Else():
                     m.d.sync += self.simple_ports_to_wb.data_in.eq((counter << 16) | 0xe000)
@@ -204,7 +204,7 @@ class InjectData2(Elaboratable):
                 with m.If(self.simple_ports_to_wb.op_rdy_out):
                     m.d.sync += counter2.eq(0)
                     m.d.sync += counter.eq(0)
-                    m.d.sync += self.head.eq((self.head + 1) % 8)
+                    m.d.sync += self.head.eq((self.head + 1) % 32)
                     m.next = "IDLE"
 
         return m

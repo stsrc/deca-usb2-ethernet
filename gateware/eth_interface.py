@@ -46,9 +46,9 @@ class EthInterface(Elaboratable):
         m.submodules.inject_data = self.inject_data
 
         if self.simulation:
-            m.submodules.wb_ram = WishboneRAM(addr_width=10, data_width = 32, granularity=8)
+            m.submodules.wb_ram = WishboneRAM(addr_width=10, data_width = 32, granularity = 8, simulate = self.simulation)
         else:
-            m.submodules.wb_ram = WishboneRAM(addr_width=16, data_width = 32, granularity=8) # will be addr_width=15
+            m.submodules.wb_ram = WishboneRAM(addr_width=16, data_width = 32, granularity = 8, simulate = self.simulation) # will be addr_width=15
 
         m.submodules.wb_arbiter = Arbiter(addr_width = 32, data_width = 32, granularity = 8, 
                                           features = { "err" })
