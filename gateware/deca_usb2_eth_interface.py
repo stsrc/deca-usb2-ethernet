@@ -189,7 +189,7 @@ class USB2AudioInterface(Elaboratable):
 
         m.d.comb += eth_interface.inject_data.usb_stream_in.stream_eq(ep3_out.stream)
 
-        m.d.comb += leds.eq(eth_interface.inject_data.leds)
+        m.d.comb += leds.eq(eth_interface.leds)
 
         # calculate bytes in frame for audio in
         audio_in_frame_bytes = Signal(4, reset=15)

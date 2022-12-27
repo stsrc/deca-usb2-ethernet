@@ -167,7 +167,7 @@ static netdev_tx_t deca_ethintf_start_xmit(struct sk_buff *skb,
 		return NETDEV_TX_BUSY;
 
 	counter++;
-
+	printk(KERN_INFO "---> %d <---\n", count);
 //	data = kmalloc(sizeof(packet), GFP_KERNEL);
 //	memcpy(data, packet, sizeof(packet));
 	usb_fill_bulk_urb(dev->tx_urb, dev->usbdev, usb_sndbulkpipe(dev->usbdev, 3),

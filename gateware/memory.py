@@ -107,7 +107,7 @@ class WishboneRAM(Elaboratable):
         # Create a read port, and connect it to our Wishbone bus.
         m.submodules.rdport = read_port = memory.read_port()
         m.d.comb += [
-            read_port.addr.eq(local_address_bits >> 2),
+            read_port.addr.eq(local_address_bits),
             self.bus.dat_r.eq(read_port.data)
         ]
 
@@ -115,7 +115,7 @@ class WishboneRAM(Elaboratable):
         if not self.read_only:
             m.submodules.wrport = write_port = memory.write_port(granularity=self.granularity)
             m.d.comb += [
-                write_port.addr.eq(local_address_bits >> 2),
+                write_port.addr.eq(local_address_bits),
                 write_port.data.eq(self.bus.dat_w)
             ]
 

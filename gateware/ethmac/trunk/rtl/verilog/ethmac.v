@@ -1113,7 +1113,7 @@ wishbone
 
 );
 
-assign m_wb_adr_o = {m_wb_adr_tmp, 2'h0};
+assign m_wb_adr_o = {2'h0, m_wb_adr_tmp};
 
 // Connecting MacStatus module
 eth_macstatus macstatus1 

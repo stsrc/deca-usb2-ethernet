@@ -151,9 +151,9 @@ class InjectData2(Elaboratable):
                 m.d.sync += self.simple_ports_to_wb.sel_in.eq(0b1111)
 
                 if self.simulation:
-                    m.d.sync += self.simple_ports_to_wb.address_in.eq(0x0400_0000 + 16 * self.head + counter2)
+                    m.d.sync += self.simple_ports_to_wb.address_in.eq(0x0400_0000 + ((16 * self.head + counter2) >> 2))
                 else:
-                    m.d.sync += self.simple_ports_to_wb.address_in.eq(0x0400_0000 + 2048 * self.head + counter2)
+                    m.d.sync += self.simple_ports_to_wb.address_in.eq(0x0400_0000 + ((2048 * self.head + counter2) >> 2))
                 m.d.sync += counter2.eq(counter)
                 m.next = "WRITE_DATA_WAIT"
 
@@ -172,10 +172,10 @@ class InjectData2(Elaboratable):
                 m.d.sync += self.simple_ports_to_wb.wr_strb_in.eq(1)
 
                 if self.simulation:
-                    m.d.sync += self.simple_ports_to_wb.data_in.eq(0x0400_0000 + 16 * self.head)
+                    m.d.sync += self.simple_ports_to_wb.data_in.eq(0x1000_0000 + ((16 * self.head) >> 2))
 
                 else:
-                    m.d.sync += self.simple_ports_to_wb.data_in.eq(0x0400_0000 + 2048 * self.head)
+                    m.d.sync += self.simple_ports_to_wb.data_in.eq(0x1000_0000 + ((2048 * self.head)))
 
                 m.d.sync += self.simple_ports_to_wb.sel_in.eq(0b1111)
                 m.d.sync += self.simple_ports_to_wb.address_in.eq((0x400 + self.head * 8 + 4) >> 2)

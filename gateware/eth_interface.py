@@ -100,6 +100,8 @@ class EthInterface(Elaboratable):
 #                self.leds[1].eq(phy.crs)
 #            ]
 
+            m.d.comb += self.leds.eq(self.wb_mac_mux.adr[0:8])
+
             m.submodules.mac = Instance("eth_top",
                 i_wb_clk_i = self.wb_clk, # testbench shows 40MHz as a clock
                 i_wb_rst_i = self.wb_rst, # active high!
@@ -114,7 +116,7 @@ class EthInterface(Elaboratable):
                 o_wb_ack_o = self.wb_mux_mac.ack, 
                 o_wb_err_o = self.wb_mux_mac.err,
     
-                o_m_wb_adr_o = self.wb_mac_mux.adr, 
+                o_m_wb_adr_o = self.wb_mac_mux.adr[0:30], 
                 o_m_wb_sel_o = self.wb_mac_mux.sel, 
                 o_m_wb_we_o  = self.wb_mac_mux.we,
                 o_m_wb_dat_o = self.wb_mac_mux.dat_w, 
