@@ -28,12 +28,18 @@ struct deca_ethintf {
 	u8 *intr_buff;
 	int intr_interval;
 	struct sk_buff *tx_skb, *rx_skb;
+	struct sk_buff *rx_skb_pool[4];
+	struct tasklet_struct tl;
+	spinlock_t rx_pool_lock;
 };
 
 #define DECA_REQT_READ       0xc0
 #define DECA_REQT_WRITE      0x40
 #define DECA_REQ_GET_REGS    0x05
 #define DECA_REQ_SET_REGS    0x05
+
+#define INTBUFSIZE 8
+#define DECA_MTU 1540
 
 static int alloc_all_urbs(struct deca_ethintf *dev)
 {
@@ -116,9 +122,97 @@ static void intr_callback(struct urb *urb)
 	printk(KERN_ERR "%s():%d\n", __FUNCTION__, __LINE__);
 }
 
+static void fill_skb_pool(struct deca_ethintf *dev)
+{
+        struct sk_buff *skb;
+        int i;
+
+        for (i = 0; i < 4; i++) {
+                if (dev->rx_skb_pool[i])
+                        continue;
+                skb = dev_alloc_skb(DECA_MTU);
+                if (!skb) {
+                        return;
+                }
+                dev->rx_skb_pool[i] = skb;
+        }
+}
+
+static void free_skb_pool(struct deca_ethintf *dev)
+{
+        int i;
+
+        for (i = 0; i < 4; i++)
+                dev_kfree_skb(dev->rx_skb_pool[i]);
+}
+
+
+static inline struct sk_buff *pull_skb(struct deca_ethintf *dev)
+{
+        struct sk_buff *skb;
+        int i;
+
+        for (i = 0; i < 4; i++) {
+                if (dev->rx_skb_pool[i]) {
+                        skb = dev->rx_skb_pool[i];
+                        dev->rx_skb_pool[i] = NULL;
+                        return skb;
+                }
+        }
+        return NULL;
+}
+
 static void read_bulk_callback(struct urb *urb)
 {
+	struct deca_ethintf *dev;
+	int status = urb->status;
+	struct net_device *netdev;
+	struct sk_buff *skb;
+	unsigned long flags = 0;
+
 	printk(KERN_ERR "%s():%d\n", __FUNCTION__, __LINE__);
+
+	dev = urb->context;
+	if (!dev) {
+		printk(KERN_ERR "%s():%d\n", __FUNCTION__, __LINE__);
+		return;
+	}
+
+	netdev = dev->netdev;
+	if (!netif_device_present(netdev)) {
+		return;
+	}
+
+	skb = dev->rx_skb;
+
+	printk(KERN_ERR "0x%02x 0x%02x 0x%02x 0x%02x\n", skb->data[0], skb->data[1], skb->data[2], skb->data[3]);
+
+	skb_put(skb, urb->actual_length);
+	dev->rx_skb->protocol = eth_type_trans(dev->rx_skb, netdev);
+	netif_rx(skb);
+        netdev->stats.rx_packets++;
+        netdev->stats.rx_bytes += urb->actual_length;
+
+	spin_lock_irqsave(&dev->rx_pool_lock, flags);
+	dev->rx_skb = pull_skb(dev);
+	spin_unlock_irqrestore(&dev->rx_pool_lock, flags);
+
+	if (!dev->rx_skb) {
+		goto resched;
+	}
+
+        usb_fill_bulk_urb(dev->rx_urb, dev->usbdev, usb_rcvbulkpipe(dev->usbdev, 2),
+                      dev->rx_skb->data, DECA_MTU, read_bulk_callback, dev);
+        if ((status = usb_submit_urb(dev->rx_urb, GFP_KERNEL))) {
+                if (status == -ENODEV)
+                        netif_device_detach(dev->netdev);
+                dev_warn(&netdev->dev, "rx_urb submit failed: %d\n", status);
+        }
+
+	return;
+
+resched:
+	tasklet_schedule(&dev->tl);
 }
 
 static void write_bulk_callback(struct urb *urb)
@@ -141,35 +235,16 @@ static void write_bulk_callback(struct urb *urb)
         netif_wake_queue(dev->netdev);
 }
 
-uint32_t packet[] = {0xffffffff, 0xffff0a0a,
-		     0x0a0a0a0a, 0x08060001,
-                     0x08000604, 0x00010a0a,
-                     0x0a0a0a0a, 0xc0a80042,
-                     0x00000000, 0x0000c0a8,
-                     0x00870000, 0x00000000,
-                     0x00000000, 0x00000000,
-                     0x00000000};
-
-
-char *data;
 static netdev_tx_t deca_ethintf_start_xmit(struct sk_buff *skb,
                                            struct net_device *netdev)
 {
         struct deca_ethintf *dev = netdev_priv(netdev);
         int count, res;
-	static int counter = 0;
 
         netif_stop_queue(netdev);
         dev->tx_skb = skb;
 	count = skb->len;
 
-	if (counter == 4)
-		return NETDEV_TX_BUSY;
-
-	counter++;
-	printk(KERN_INFO "---> %d <---\n", count);
-//	data = kmalloc(sizeof(packet), GFP_KERNEL);
-//	memcpy(data, packet, sizeof(packet));
 	usb_fill_bulk_urb(dev->tx_urb, dev->usbdev, usb_sndbulkpipe(dev->usbdev, 3),
                           skb->data, count, write_bulk_callback, dev);
         if ((res = usb_submit_urb(dev->tx_urb, GFP_ATOMIC))) {
@@ -198,8 +273,7 @@ static void deca_ethintf_tx_timeout(struct net_device *netdev)
         netdev->stats.tx_errors++;
 }
 
-#define INTBUFSIZE 8
-#define DECA_MTU 1540
+
 static int deca_ethintf_open(struct net_device *netdev)
 {
 	int res = 0;
@@ -215,7 +289,13 @@ static int deca_ethintf_open(struct net_device *netdev)
                 return res;
         }
 */
-/*        usb_fill_bulk_urb(dev->rx_urb, dev->usbdev, usb_rcvbulkpipe(dev->usbdev, 2),
+	if (!dev->rx_skb) {
+		dev->rx_skb = pull_skb(dev);
+		if (!dev->rx_skb)
+			return -ENOMEM;
+	}
+
+        usb_fill_bulk_urb(dev->rx_urb, dev->usbdev, usb_rcvbulkpipe(dev->usbdev, 2),
                       dev->rx_skb->data, DECA_MTU, read_bulk_callback, dev);
         if ((res = usb_submit_urb(dev->rx_urb, GFP_KERNEL))) {
                 if (res == -ENODEV)
@@ -224,7 +304,7 @@ static int deca_ethintf_open(struct net_device *netdev)
                 usb_kill_urb(dev->intr_urb);
                 return res;
         }
-*/
+
 //        enable_net_traffic(dev);
 //        set_carrier(netdev);
 	netif_carrier_on(netdev);
@@ -289,6 +369,41 @@ static void set_ethernet_addr(struct deca_ethintf *dev)
 	ether_addr_copy(dev->netdev->dev_addr, node_id);
 }
 
+static void rx_fixup(unsigned long data)
+{
+	struct deca_ethintf *dev = (struct deca_ethintf *)data;
+	struct sk_buff *skb;
+        int status;
+	struct net_device *netdev = dev->netdev;
+
+	spin_lock_irq(&dev->rx_pool_lock);
+	fill_skb_pool(dev);
+        spin_unlock_irq(&dev->rx_pool_lock);
+
+	spin_lock_irq(&dev->rx_pool_lock);
+        skb = pull_skb(dev);
+        spin_unlock_irq(&dev->rx_pool_lock);
+
+	if (skb) {
+		dev->rx_skb = skb;
+	} else {
+		printk(KERN_ERR "rx_fixup failed!\n");
+		goto tlresched;
+	}
+
+        usb_fill_bulk_urb(dev->rx_urb, dev->usbdev, usb_rcvbulkpipe(dev->usbdev, 2),
+                      dev->rx_skb->data, DECA_MTU, read_bulk_callback, dev);
+        if ((status = usb_submit_urb(dev->rx_urb, GFP_KERNEL))) {
+                if (status == -ENODEV)
+                        netif_device_detach(dev->netdev);
+                dev_warn(&netdev->dev, "rx_urb submit failed: %d\n", status);
+        }
+	return;
+
+tlresched:
+	tasklet_schedule(&dev->tl);
+}
+
 static int deca_ethintf_probe(struct usb_interface *intf,
                               const struct usb_device_id *id)
 {
@@ -308,6 +423,10 @@ static int deca_ethintf_probe(struct usb_interface *intf,
 	}
 
 	deca = netdev_priv(netdev);
+
+        tasklet_init(&deca->tl, rx_fixup, (unsigned long) deca);
+        spin_lock_init(&deca->rx_pool_lock);
+
 	deca->usbdev = usbdev;
 	deca->netdev = netdev;
 	deca->intr_interval = 100; // 100ms
@@ -327,6 +446,8 @@ static int deca_ethintf_probe(struct usb_interface *intf,
                 free_netdev(netdev);
 		return -ENOMEM;
 	}
+
+	fill_skb_pool(deca);
 
 	set_ethernet_addr(deca);
 
@@ -361,6 +482,8 @@ static void deca_ethintf_disconnect(struct usb_interface *intf)
 		unregister_netdev(deca->netdev);
 		unlink_all_urbs(deca);
 		free_all_urbs(deca);
+		free_skb_pool(deca);
+                dev_kfree_skb(deca->rx_skb);
 		free_netdev(deca->netdev);
 	}
 }

@@ -44,6 +44,7 @@ class EthInterface(Elaboratable):
         self.wb_mux_mac = Interface(addr_width = 10, data_width = 32, granularity = 8, 
                                     features = { "err" })
         m.submodules.inject_data = self.inject_data
+        m.d.comb += self.inject_data.int.eq(mac_int)
 
         if self.simulation:
             m.submodules.wb_ram = WishboneRAM(addr_width=10, data_width = 32, granularity = 8, simulate = self.simulation)
