@@ -21,8 +21,8 @@ from luna.gateware.usb.usb2.request           import USBRequestHandler, StallOnl
 
 from requesthandlers        import VendorRequestHandlers
 
-class USB2AudioInterface(Elaboratable):
-    """ USB Audio Class v2 interface """
+class USB2EthernetInterface(Elaboratable):
+    """ USB Ethernet interface """
 
     def create_descriptors(self):
         """ Creates the descriptors that describe our eth topology. """
@@ -162,4 +162,4 @@ class USB2AudioInterface(Elaboratable):
 
 if __name__ == "__main__":
     os.environ["LUNA_PLATFORM"] = "arrow_deca:ArrowDECAPlatform"
-    top_level_cli(USB2AudioInterface)
+    top_level_cli(USB2EthernetInterface)
