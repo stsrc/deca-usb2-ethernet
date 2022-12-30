@@ -179,7 +179,31 @@ class InjectData2(Elaboratable):
                         m.d.sync += self.rd_head.eq(self.rd_head + 1 % 16)
                         m.next = "WRITE_ETHMAC_RX_BUF_DESC_0"
                     with m.Else():
+                        m.next = "WRITE_ETHMAC_TX_BUF_DESC_0"
+
+            with m.State("WRITE_ETHMAC_TX_BUF_DESC_0"):
+#                m.d.sync += self.leds.eq(0)
+                m.d.sync += self.simple_ports_to_wb.wr_strb_in.eq(1)
+
+                if self.simulation:
+                    m.d.sync += self.simple_ports_to_wb.data_in.eq(0x1000_0000 + (16 * self.head))
+
+                else:
+                    m.d.sync += self.simple_ports_to_wb.data_in.eq(0x1000_0000 + (2048 * self.head))
+
+                m.d.sync += self.simple_ports_to_wb.sel_in.eq(0b1111)
+                m.d.sync += self.simple_ports_to_wb.address_in.eq((0x400 + self.head * 8 + 4) >> 2)
+                m.next = "WRITE_ETHMAC_TX_BUF_DESC_0_WAIT"
+
+            with m.State("WRITE_ETHMAC_TX_BUF_DESC_0_WAIT"):
+#                m.d.sync += self.leds.eq(0)
+                m.d.sync += self.simple_ports_to_wb.wr_strb_in.eq(0)
+                with m.If(self.simple_ports_to_wb.op_rdy_out):
+                    m.d.sync += self.head.eq((self.head + 1) % 16)
+                    with m.If(((self.head + 1) % 16) == 0):
                         m.next = "IDLE"
+                    with m.Else():
+                        m.next = "WRITE_ETHMAC_TX_BUF_DESC_0"
 
             with m.State("IDLE"):
 #                m.d.sync += self.leds.eq(0)
@@ -373,26 +397,6 @@ class InjectData2(Elaboratable):
                     m.next = "WRITE_DATA_PREPARE"
                 with m.Elif(self.simple_ports_to_wb.op_rdy_out & self.end):
                     m.d.sync += self.end.eq(0)
-                    m.next = "WRITE_ETHMAC_TX_BUF_DESC_0"
-
-            with m.State("WRITE_ETHMAC_TX_BUF_DESC_0"):
-#                m.d.sync += self.leds.eq(0)
-                m.d.sync += self.simple_ports_to_wb.wr_strb_in.eq(1)
-
-                if self.simulation:
-                    m.d.sync += self.simple_ports_to_wb.data_in.eq(0x1000_0000 + (16 * self.head))
-
-                else:
-                    m.d.sync += self.simple_ports_to_wb.data_in.eq(0x1000_0000 + (2048 * self.head))
-
-                m.d.sync += self.simple_ports_to_wb.sel_in.eq(0b1111)
-                m.d.sync += self.simple_ports_to_wb.address_in.eq((0x400 + self.head * 8 + 4) >> 2)
-                m.next = "WRITE_ETHMAC_TX_BUF_DESC_0_WAIT"
-
-            with m.State("WRITE_ETHMAC_TX_BUF_DESC_0_WAIT"):
-#                m.d.sync += self.leds.eq(0)
-                m.d.sync += self.simple_ports_to_wb.wr_strb_in.eq(0)
-                with m.If(self.simple_ports_to_wb.op_rdy_out):
                     m.next = "WRITE_ETHMAC_TX_BUF_DESC_1"
 
             with m.State("WRITE_ETHMAC_TX_BUF_DESC_1"):
