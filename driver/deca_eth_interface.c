@@ -170,7 +170,7 @@ static void read_bulk_callback(struct urb *urb)
 	struct sk_buff *skb;
 	unsigned long flags = 0;
 
-	printk(KERN_ERR "%s():%d\n", __FUNCTION__, __LINE__);
+//	printk(KERN_ERR "%s():%d\n", __FUNCTION__, __LINE__);
 
 	dev = urb->context;
 	if (!dev) {
@@ -185,7 +185,7 @@ static void read_bulk_callback(struct urb *urb)
 
 	skb = dev->rx_skb;
 
-	printk(KERN_ERR "0x%02x 0x%02x 0x%02x 0x%02x\n", skb->data[0], skb->data[1], skb->data[2], skb->data[3]);
+//	printk(KERN_ERR "0x%02x 0x%02x 0x%02x 0x%02x\n", skb->data[0], skb->data[1], skb->data[2], skb->data[3]);
 
 	skb_put(skb, urb->actual_length);
 	dev->rx_skb->protocol = eth_type_trans(dev->rx_skb, netdev);
@@ -220,7 +220,7 @@ static void write_bulk_callback(struct urb *urb)
         struct deca_ethintf *dev;
         int status = urb->status;
 
-	printk(KERN_ERR "%s():%d\n", __FUNCTION__, __LINE__);
+//	printk(KERN_ERR "%s():%d\n", __FUNCTION__, __LINE__);
 
         dev = urb->context;
         if (!dev)
