@@ -265,10 +265,10 @@ static netdev_tx_t deca_ethintf_start_xmit(struct sk_buff *skb,
         return NETDEV_TX_OK;
 }
 
-static void deca_ethintf_tx_timeout(struct net_device *netdev)
+static void deca_ethintf_tx_timeout(struct net_device *netdev, unsigned int txqueue)
 {
         struct deca_ethintf *dev = netdev_priv(netdev);
-        dev_warn(&netdev->dev, "Tx timeout.\n");
+        dev_warn(&netdev->dev, "Tx timeout, txqueue = %u\n", txqueue);
         usb_unlink_urb(dev->tx_urb);
         netdev->stats.tx_errors++;
 }
