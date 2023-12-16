@@ -21,6 +21,8 @@ static const struct usb_device_id deca_ethintf_table[] = {
 
 MODULE_DEVICE_TABLE(usb, deca_ethintf_table);
 
+#define POOL_SIZE 4
+
 struct deca_ethintf {
 	struct net_device *netdev;
 	struct usb_device *usbdev;
@@ -28,7 +30,7 @@ struct deca_ethintf {
 	u8 *intr_buff;
 	int intr_interval;
 	struct sk_buff *tx_skb, *rx_skb;
-	struct sk_buff *rx_skb_pool[4];
+	struct sk_buff *rx_skb_pool[POOL_SIZE];
 	struct tasklet_struct tl;
 	spinlock_t rx_pool_lock;
 };
@@ -127,7 +129,7 @@ static void fill_skb_pool(struct deca_ethintf *dev)
         struct sk_buff *skb;
         int i;
 
-        for (i = 0; i < 4; i++) {
+        for (i = 0; i < POOL_SIZE; i++) {
                 if (dev->rx_skb_pool[i])
                         continue;
                 skb = dev_alloc_skb(DECA_MTU);
@@ -142,7 +144,7 @@ static void free_skb_pool(struct deca_ethintf *dev)
 {
         int i;
 
-        for (i = 0; i < 4; i++)
+        for (i = 0; i < POOL_SIZE; i++)
                 dev_kfree_skb(dev->rx_skb_pool[i]);
 }
 
@@ -152,7 +154,7 @@ static inline struct sk_buff *pull_skb(struct deca_ethintf *dev)
         struct sk_buff *skb;
         int i;
 
-        for (i = 0; i < 4; i++) {
+        for (i = 0; i < POOL_SIZE; i++) {
                 if (dev->rx_skb_pool[i]) {
                         skb = dev->rx_skb_pool[i];
                         dev->rx_skb_pool[i] = NULL;
@@ -183,9 +185,24 @@ static void read_bulk_callback(struct urb *urb)
 		return;
 	}
 
-	skb = dev->rx_skb;
+	switch(status) {
+	case 0:
+		break;
+	case -ENOENT:
+		return;
+	default:
+		goto goon;
+	}
 
-//	printk(KERN_ERR "0x%02x 0x%02x 0x%02x 0x%02x\n", skb->data[0], skb->data[1], skb->data[2], skb->data[3]);
+
+	skb = dev->rx_skb;
+	if (!skb) {
+		goto resched;
+	}
+
+	if (urb->actual_length < 4) {
+		goto goon;
+	}
 
 	skb_put(skb, urb->actual_length);
 	dev->rx_skb->protocol = eth_type_trans(dev->rx_skb, netdev);
@@ -201,12 +218,14 @@ static void read_bulk_callback(struct urb *urb)
 		goto resched;
 	}
 
+goon:
         usb_fill_bulk_urb(dev->rx_urb, dev->usbdev, usb_rcvbulkpipe(dev->usbdev, 2),
                       dev->rx_skb->data, DECA_MTU, read_bulk_callback, dev);
-        if ((status = usb_submit_urb(dev->rx_urb, GFP_KERNEL))) {
+        if ((status = usb_submit_urb(dev->rx_urb, GFP_ATOMIC))) {
                 if (status == -ENODEV)
                         netif_device_detach(dev->netdev);
                 dev_warn(&netdev->dev, "rx_urb submit failed: %d\n", status);
+		goto resched;
         }
 
 	return;
@@ -393,7 +412,7 @@ static void rx_fixup(unsigned long data)
 
         usb_fill_bulk_urb(dev->rx_urb, dev->usbdev, usb_rcvbulkpipe(dev->usbdev, 2),
                       dev->rx_skb->data, DECA_MTU, read_bulk_callback, dev);
-        if ((status = usb_submit_urb(dev->rx_urb, GFP_KERNEL))) {
+        if ((status = usb_submit_urb(dev->rx_urb, GFP_ATOMIC))) {
                 if (status == -ENODEV)
                         netif_device_detach(dev->netdev);
                 dev_warn(&netdev->dev, "rx_urb submit failed: %d\n", status);
@@ -479,6 +498,7 @@ static void deca_ethintf_disconnect(struct usb_interface *intf)
 	struct deca_ethintf *deca = usb_get_intfdata(intf);
 	usb_set_intfdata(intf, NULL);
 	if (deca) {
+		tasklet_kill(&deca->tl);
 		unregister_netdev(deca->netdev);
 		unlink_all_urbs(deca);
 		free_all_urbs(deca);
