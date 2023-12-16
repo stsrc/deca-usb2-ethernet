@@ -33,6 +33,8 @@ class InjectData2(Elaboratable):
         self.int = Signal()
         self.rx_pkt_len = Signal(16)
 
+        self.busy_counter = Signal(8)
+
     def get_bus(self):
         return self.simple_ports_to_wb.bus
 
@@ -62,11 +64,14 @@ class InjectData2(Elaboratable):
         with m.If(self.int):
             m.d.sync += interrupt_generated.eq(1)
 
+        m.d.comb += self.leds.eq(self.busy_counter) #TODO: why this turns into 255 from 0 in no-time?
+
         with m.FSM(reset="RESET"):
             with m.State("RESET"):
 #                m.d.sync += self.leds.eq(1)
                 m.d.sync += self.wait_counter.eq(0)
                 m.d.sync += self.phy_resetn.eq(0)
+                m.d.sync += self.busy_counter.eq(0)
                 m.next = "WAIT_BEFORE_START"
 
             with m.State("WAIT_BEFORE_START"):
@@ -262,12 +267,14 @@ class InjectData2(Elaboratable):
                     m.d.sync += clear_tx_desc.eq(1)
                 with m.If(irq_state & 0b00001100):
                     m.d.sync += send_packet.eq(1)
+                with m.If(irq_state & 0b00010000):
+                    m.d.sync += self.busy_counter.eq(self.busy_counter + 1)
                 m.next = "WRITE_IRQ"
 
             with m.State("WRITE_IRQ"):
 #                m.d.sync += self.leds.eq(0)
                 m.d.sync += self.simple_ports_to_wb.wr_strb_in.eq(1)
-                m.d.sync += self.simple_ports_to_wb.data_in.eq(0)
+                m.d.sync += self.simple_ports_to_wb.data_in.eq(0) #TODO: not needed 0bff or something, in a relation to datasheet?
                 m.d.sync += self.simple_ports_to_wb.sel_in.eq(0b1111)
                 m.d.sync += self.simple_ports_to_wb.address_in.eq(0x04 >> 2)
                 m.next = "WRITE_IRQ_WAIT"
@@ -322,7 +329,6 @@ class InjectData2(Elaboratable):
                     m.d.comb += self.usb_stream_out.valid.eq(1)
                     #TODO what about last i.e. 3 packets? is it alligned properly?
                     m.d.comb += self.usb_stream_out.payload.eq(payload >> ((3 - (counter % 4)) * 8))
-                    m.d.sync += self.leds.eq(payload >> ((3 - (counter % 4)) * 8))
                     with m.If(counter == 0):
                         m.d.comb += self.usb_stream_out.first.eq(1)
                     with m.Else():
