@@ -10,8 +10,6 @@ crc32-calc
 *.mod.c
 *.o
 *.ko
-*.ko.cmd
+*.cmd
 *.symvers
 *.order
-*.o.cmd
-*.mod.cmd
