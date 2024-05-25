@@ -43,7 +43,7 @@ class ArrowDECAClockAndResetController(Elaboratable):
 
             # Drive our clock from the USB clock
             # coming from the USB clock pin of the USB3300
-            i_inclk  = platform.request("clk60"),
+            i_inclk  = platform.request("clk60").i[0],
             o_clk    = clocks,
             o_locked = locked,
         )

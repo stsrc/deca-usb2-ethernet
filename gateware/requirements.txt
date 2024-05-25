@@ -1,4 +1,4 @@
-git+https://github.com/amaranth-lang/amaranth.git
-git+https://github.com/amaranth-community-unofficial/amaranth-boards.git
-git+https://github.com/amaranth-community-unofficial/usb2-highspeed-core.git
-git+https://github.com/amaranth-community-unofficial/amlib.git
+git+https://github.com/stsrc/amaranth.git@v0.4
+git+https://github.com/stsrc/amaranth-boards.git
+git+https://github.com/stsrc/usb2-highspeed-core.git@temp
+git+https://github.com/stsrc/amlib@main

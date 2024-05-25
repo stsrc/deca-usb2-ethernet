@@ -7,7 +7,7 @@ if __name__ == "__main__":
     inject = dut.inject_data
 
     def process_usb():
-        for _ in range(25):
+        for _ in range(220):
             yield Tick()
 
         yield inject.usb_stream_in.payload.eq(1)

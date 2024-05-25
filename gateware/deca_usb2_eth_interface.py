@@ -104,10 +104,10 @@ class USB2EthernetInterface(Elaboratable):
             ResetSignal("usb").eq(resetsignal)
         ]
 
-        m.d.sync += resetsignal.eq(buttons[0])
+        m.d.sync += resetsignal.eq(buttons.i[0])
         
 
-        leds = Cat([platform.request("led", i) for i in range(8)])
+        leds = Cat([platform.request("led", i).o for i in range(8)])
 
         # Generate our domain clocks/resets.
         m.submodules.car = platform.clock_domain_generator()

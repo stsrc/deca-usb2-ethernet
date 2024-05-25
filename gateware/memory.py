@@ -10,9 +10,11 @@ from enum      import Enum
 from functools import reduce
 from operator  import or_
 
-from amaranth         import Elaboratable, Record, Module, Cat, Array, Repl, Signal, Memory
+from amaranth         import Elaboratable, Record, Module, Cat, Array, Repl, Signal
 from amaranth_soc     import wishbone, memory
 
+#from mem       import Memory
+from amaranth import Memory
 
 class WishboneRAM(Elaboratable):
     """ Simple Wishbone-connected RAM. """
@@ -92,11 +94,15 @@ class WishboneRAM(Elaboratable):
         m = Module()
 
         # Create our memory initializer from our initial value.
-        initial_value = self._initialization_value(self.initial_value, self.data_width, self.granularity, self.byteorder)
+        # initial_value = self._initialization_value(self.initial_value, self.data_width, self.granularity, self.byteorder)
 
         # Create the the memory used to store our data.
         memory_depth = 2 ** self.local_addr_width
-        memory = Memory(width=self.data_width, depth=memory_depth, init=initial_value, name=self.name, simulate=self.simulate)
+        print("----> data_width: ")
+        print(self.data_width)
+        print("----> memory_depth: ")
+        print(memory_depth)
+        memory = Memory(width=self.data_width, depth=memory_depth, name=self.name, simulate=self.simulate)
 
         # Grab a reference to the bits of our Wishbone bus that are relevant to us.
         local_address_bits = self.bus.adr[:self.local_addr_width]
@@ -106,7 +112,7 @@ class WishboneRAM(Elaboratable):
 
         # Create a read port, and connect it to our Wishbone bus.
         m.submodules.rdport = read_port = memory.read_port()
-        m.d.comb += [
+        m.d.sync += [
             read_port.addr.eq(local_address_bits),
             self.bus.dat_r.eq(read_port.data)
         ]
@@ -114,14 +120,14 @@ class WishboneRAM(Elaboratable):
         # If this is a read/write memory, create a write port, as well.
         if not self.read_only:
             m.submodules.wrport = write_port = memory.write_port(granularity=self.granularity)
-            m.d.comb += [
+            m.d.sync += [
                 write_port.addr.eq(local_address_bits),
                 write_port.data.eq(self.bus.dat_w)
             ]
 
             # Generate the write enables for each of our words.
             for i in range(self.bytes_per_word):
-                m.d.comb += write_port.en[i].eq(
+                m.d.sync += write_port.en[i].eq(
                     self.bus.cyc &    # Transaction is active.
                     self.bus.stb &    # Valid data is being provided.
                     self.bus.we  &    # This is a write.

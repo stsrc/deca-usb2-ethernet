@@ -1,7 +1,7 @@
 import os
 
 from amaranth            import *
-
+from amaranth.lib.wiring import connect
 from amaranth_soc.wishbone.bus import Interface, Decoder, Arbiter
 from amaranth_soc.memory import MemoryMap
 
@@ -56,19 +56,16 @@ class EthInterface(Elaboratable):
         m.submodules.wb_decoder = Decoder(addr_width = 32, data_width = 32, granularity = 8, 
                                           features = { "err" })
 
-        m.d.comb += m.submodules.wb_arbiter.bus.connect(m.submodules.wb_decoder.bus)
+
+        connect(m, m.submodules.wb_arbiter.bus, m.submodules.wb_decoder.bus)
 
         m.submodules.wb_arbiter.add(m.submodules.inject_data.get_bus())
         m.submodules.wb_arbiter.add(self.wb_mac_mux)
 
         self.wb_mux_mac.memory_map = MemoryMap(addr_width = 12, data_width = 8)
 
-        m.submodules.wb_decoder.bus._map._frozen = False;
-
         m.submodules.wb_decoder.add(self.wb_mux_mac, addr = 0x00000000)
         m.submodules.wb_decoder.add(m.submodules.wb_ram.bus, addr = 0x10000000) 
-
-        m.submodules.wb_decoder.bus._map._frozen = True;
 
         if not self.simulation:
             phy = platform.request("phy")
@@ -78,28 +75,6 @@ class EthInterface(Elaboratable):
                 phy.mdio.o.eq(md_pad_o),
                 phy.mdio.oe.eq(md_padoe)
             ]
-
-#            with m.If(self.wb_mac_mux.adr != 0):
-#                m.d.sync += self.leds.eq(self.wb_mac_mux.adr[0:7])
-
-#            with m.If(self.wb_mac_mux.adr != 0):
-#                with m.If(self.wb_mac_mux.ack):
-#                    m.d.sync += self.leds.eq(self.wb_mac_mux.dat_r[0:7])
-
-            with m.If(mac_int):
-                m.d.comb += self.leds.eq(0b10101010)
-
-#            m.d.comb += [
-#                self.leds[0].eq(self.wb_mux_mac.cyc),
-#                self.leds[1].eq(self.wb_mux_mac.stb),
-#                self.leds[2].eq(self.wb_mux_mac.we),
-#                self.leds[3].eq(self.wb_clk),
-#                self.leds[4].eq(self.wb_mux_mac.ack),
-#                self.leds[5].eq(phy.tx_clk),
-#                self.leds[6].eq(phy.rx_clk)
-#                self.leds[0].eq(phy.col),
-#                self.leds[1].eq(phy.crs)
-#            ]
 
             m.d.comb += self.leds.eq(self.wb_mac_mux.adr[0:8])
 
@@ -146,7 +121,6 @@ class EthInterface(Elaboratable):
                 o_md_padoe_o = md_padoe,
 
                 o_int_o = mac_int
-#                ,o_leds = self.leds
             )
 
         return m
