@@ -5,7 +5,7 @@ from amaranth.lib.wiring import connect
 from amaranth_soc.wishbone.bus import Interface, Decoder, Arbiter
 from amaranth_soc.memory import MemoryMap
 
-from inject_data2 import InjectData2
+from inject_data import InjectData
 
 from memory import WishboneRAM
 
@@ -14,11 +14,14 @@ class EthInterface(Elaboratable):
     def __init__(self, simulation=False):
         self.wb_clk = Signal()
         self.wb_rst = Signal()
-        self.inject_data = InjectData2(simulation)
+        self.inject_data = InjectData(simulation)
         self.simulation = simulation
         self.leds = Signal(8)
-        self.wb_mac_mux = Interface(addr_width = 32, data_width = 32, granularity = 8, 
-                                    features = { "err" })
+        if not self.simulation:
+            self.wb_mac_mux = Interface(addr_width = 32, data_width = 32, granularity = 8, 
+                                        features = { "err" })
+            self.wb_mux_mac = Interface(addr_width = 10, data_width = 32, granularity = 8, 
+                                        features = { "err" })
     def elaborate(self, platform):
         m = Module()
 
@@ -40,9 +43,6 @@ class EthInterface(Elaboratable):
         md_padoe = Signal()
         mac_int = Signal()
 
-
-        self.wb_mux_mac = Interface(addr_width = 10, data_width = 32, granularity = 8, 
-                                    features = { "err" })
         m.submodules.inject_data = self.inject_data
         m.d.comb += self.inject_data.int.eq(mac_int)
 
@@ -60,11 +60,12 @@ class EthInterface(Elaboratable):
         connect(m, m.submodules.wb_arbiter.bus, m.submodules.wb_decoder.bus)
 
         m.submodules.wb_arbiter.add(m.submodules.inject_data.get_bus())
-        m.submodules.wb_arbiter.add(self.wb_mac_mux)
 
-        self.wb_mux_mac.memory_map = MemoryMap(addr_width = 12, data_width = 8)
+        if not self.simulation:
+            m.submodules.wb_arbiter.add(self.wb_mac_mux)
+            self.wb_mux_mac.memory_map = MemoryMap(addr_width = 12, data_width = 8)
+            m.submodules.wb_decoder.add(self.wb_mux_mac, addr = 0x00000000)
 
-        m.submodules.wb_decoder.add(self.wb_mux_mac, addr = 0x00000000)
         m.submodules.wb_decoder.add(m.submodules.wb_ram.bus, addr = 0x10000000) 
 
         if not self.simulation:

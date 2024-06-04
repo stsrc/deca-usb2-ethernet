@@ -7,7 +7,7 @@ if __name__ == "__main__":
     inject = dut.inject_data
 
     def process_usb():
-        for _ in range(220):
+        for _ in range(25):
             yield Tick()
 
         yield inject.usb_stream_in.payload.eq(1)
@@ -21,24 +21,30 @@ if __name__ == "__main__":
         yield inject.usb_stream_in.payload.eq(3)
         yield Tick()
         yield inject.usb_stream_in.payload.eq(4)
-        yield Tick()
-        yield inject.usb_stream_in.payload.eq(5)
         yield inject.usb_stream_in.last.eq(1)
-        for _ in range(6):
-            yield Tick()
+        yield Tick()
         yield inject.usb_stream_in.last.eq(0)
         yield inject.usb_stream_in.valid.eq(0)
+        for _ in range(10):
+            yield Tick()
+
+        yield inject.usb_stream_out.ready.eq(1)
         yield Tick()
 
         for _ in range(25):
             yield Tick()
 
-        yield inject.usb_stream_in.payload.eq(6)
+        yield inject.usb_stream_out.ready.eq(0)
+        yield Tick()
+    
+        yield inject.usb_stream_in.payload.eq(5)
         yield inject.usb_stream_in.valid.eq(1)
         yield inject.usb_stream_in.first.eq(1)
         yield Tick()
         yield Tick()
         yield inject.usb_stream_in.first.eq(0)
+        yield inject.usb_stream_in.payload.eq(6)
+        yield Tick()
         yield inject.usb_stream_in.payload.eq(7)
         yield Tick()
         yield inject.usb_stream_in.payload.eq(8)
@@ -46,14 +52,19 @@ if __name__ == "__main__":
         yield Tick()
         yield inject.usb_stream_in.last.eq(0)
         yield inject.usb_stream_in.valid.eq(0)
+        for _ in range(10):
+            yield Tick()
+
+        yield inject.usb_stream_out.ready.eq(1)
         yield Tick()
 
         for _ in range(25):
             yield Tick()
 
+        yield inject.usb_stream_out.ready.eq(0)
+        yield Tick()
 
     def process():
-        yield dut.wb_mux_mac.ack.eq(1)
         for _ in range(1000):
             yield Tick()
 

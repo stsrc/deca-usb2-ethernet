@@ -13,3 +13,4 @@ crc32-calc
 *.cmd
 *.symvers
 *.order
+*/test/*

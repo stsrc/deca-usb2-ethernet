@@ -90,6 +90,8 @@ class WishboneRAM(Elaboratable):
 
         self.simulate = simulate
 
+        self.counter = Signal(2)
+
     def elaborate(self, platform):
         m = Module()
 
@@ -134,13 +136,13 @@ class WishboneRAM(Elaboratable):
                     self.bus.sel[i]   # The relevant setion of the datum is being targeted.
                 )
 
-        # We can handle any transaction request in a single cycle, when our RAM handles
-        # the read or write. Accordingly, we'll ACK the cycle after any request.
-        m.d.sync += self.bus.ack.eq(
-            self.bus.cyc &
-            self.bus.stb &
-            ~self.bus.ack
-        )
+        m.d.sync += self.bus.ack.eq(0)
+        with m.If((self.bus.cyc == 1) & (self.bus.stb == 1)):
+            m.d.sync += self.counter.eq(1)
+        with m.If(self.counter != 0):
+            m.d.sync += self.counter.eq(self.counter + 1)
+            with m.If(self.counter + 1 == 3):
+                m.d.sync += self.bus.ack.eq(1)
 
         return m
 

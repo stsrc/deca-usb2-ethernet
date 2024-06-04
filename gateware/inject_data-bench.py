@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-from inject_data2 import InjectData2
+from inject_data import InjectData
 from amaranth.sim import Simulator, Tick
 
 if __name__ == "__main__":
-    dut = InjectData2(simulation=True)
+    dut = InjectData(simulation=True)
 
     def process_usb():
         for _ in range(110):

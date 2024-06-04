@@ -119,11 +119,6 @@ static int set_registers(struct deca_ethintf *dev,
         return ret;
 }
 
-static void intr_callback(struct urb *urb)
-{
-	printk(KERN_ERR "%s():%d\n", __FUNCTION__, __LINE__);
-}
-
 static void fill_skb_pool(struct deca_ethintf *dev)
 {
         struct sk_buff *skb;
@@ -171,8 +166,6 @@ static void read_bulk_callback(struct urb *urb)
 	struct net_device *netdev;
 	struct sk_buff *skb;
 	unsigned long flags = 0;
-
-//	printk(KERN_ERR "%s():%d\n", __FUNCTION__, __LINE__);
 
 	dev = urb->context;
 	if (!dev) {
@@ -239,8 +232,6 @@ static void write_bulk_callback(struct urb *urb)
         struct deca_ethintf *dev;
         int status = urb->status;
 
-//	printk(KERN_ERR "%s():%d\n", __FUNCTION__, __LINE__);
-
         dev = urb->context;
         if (!dev)
                 return;
@@ -298,16 +289,6 @@ static int deca_ethintf_open(struct net_device *netdev)
 	int res = 0;
 	struct deca_ethintf *dev = netdev_priv(netdev);
 
-/*        usb_fill_int_urb(dev->intr_urb, dev->usbdev, usb_rcvintpipe(dev->usbdev, 1),
-                     dev->intr_buff, INTBUFSIZE, intr_callback,
-                     dev, dev->intr_interval);
-        if ((res = usb_submit_urb(dev->intr_urb, GFP_KERNEL))) {
-                if (res == -ENODEV)
-                        netif_device_detach(dev->netdev);
-                dev_warn(&netdev->dev, "intr_urb submit failed: %d\n", res);
-                return res;
-        }
-*/
 	if (!dev->rx_skb) {
 		dev->rx_skb = pull_skb(dev);
 		if (!dev->rx_skb)
@@ -324,8 +305,6 @@ static int deca_ethintf_open(struct net_device *netdev)
                 return res;
         }
 
-//        enable_net_traffic(dev);
-//        set_carrier(netdev);
 	netif_carrier_on(netdev);
 	netif_start_queue(netdev);
 
@@ -385,7 +364,7 @@ static const struct ethtool_ops ops = {
 static void set_ethernet_addr(struct deca_ethintf *dev)
 {
 	u8 node_id[ETH_ALEN] = {0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a};
-	ether_addr_copy(dev->netdev->dev_addr, node_id);
+	dev_addr_set(dev->netdev, node_id);
 }
 
 static void rx_fixup(unsigned long data)
@@ -452,7 +431,6 @@ static int deca_ethintf_probe(struct usb_interface *intf,
 
 	netdev->netdev_ops = &deca_ethintf_netdev_ops;
 	netdev->ethtool_ops = &ops;
-//	netdev->watchdog_timeo = (HZ);
 
         deca->intr_buff = kmalloc(INTBUFSIZE, GFP_KERNEL);
         if (!deca->intr_buff) {

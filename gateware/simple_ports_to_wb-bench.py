@@ -7,9 +7,9 @@ if __name__ == "__main__":
 
     def process_wr():
         yield dut.address_in.eq(0x10000000)
-        yield dut.wr_strb_in.eq(1)
         yield dut.data_in.eq(0x01011010)
         yield dut.sel_in.eq(0b1111)
+        yield dut.wr_strb_in.eq(1)
         yield Tick()
         yield dut.wr_strb_in.eq(0)
         yield Tick()
