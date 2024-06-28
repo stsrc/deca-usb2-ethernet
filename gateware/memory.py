@@ -10,7 +10,7 @@ from enum      import Enum
 from functools import reduce
 from operator  import or_
 
-from amaranth         import Elaboratable, Record, Module, Cat, Array, Repl, Signal
+from amaranth         import Elaboratable, Record, Module, Cat, Array, Repl, Signal, Instance, ClockSignal
 from amaranth_soc     import wishbone, memory
 
 #from mem       import Memory
@@ -95,78 +95,78 @@ class WishboneRAM(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
-        # Create our memory initializer from our initial value.
-        # initial_value = self._initialization_value(self.initial_value, self.data_width, self.granularity, self.byteorder)
-
-        # Create the the memory used to store our data.
-        memory_depth = 2 ** self.local_addr_width
-        print("----> data_width: ")
-        print(self.data_width)
-        print("----> memory_depth: ")
-        print(memory_depth)
-        memory = Memory(width=self.data_width, depth=memory_depth, name=self.name, simulate=self.simulate)
-
-        # Grab a reference to the bits of our Wishbone bus that are relevant to us.
         local_address_bits = self.bus.adr[:self.local_addr_width]
-        print("local_adress_bits:")
-        print(local_address_bits)
-        print(self.local_addr_width)
-
-        # Create a read port, and connect it to our Wishbone bus.
-        m.submodules.rdport = read_port = memory.read_port()
-        m.d.sync += [
-            read_port.addr.eq(local_address_bits),
-            self.bus.dat_r.eq(read_port.data)
-        ]
-
-        # If this is a read/write memory, create a write port, as well.
-        if not self.read_only:
-            m.submodules.wrport = write_port = memory.write_port(granularity=self.granularity)
+        ram_cs = Signal(reset = 0)
+        ram_we = Signal(reset = 0)
+        ram_oe = Signal(reset = 0)
+        ram_data_in = Signal(self.data_width, reset = 0)
+        ram_data_out = Signal(self.data_width)
+        data_ready = Signal(reset = 0)
+        flag = Signal(1, reset = 0)
+        if not self.simulate:
+            file="./synchr_memory.vhd"
+            content = open(file, "r")
+            platform.add_file(file, content)
+            memory = Instance("ram_sp_ar_aw",
+                i_clk = ClockSignal("usb"),
+                i_address = local_address_bits,
+                i_dat_in = ram_data_in,
+                o_dat_out = ram_data_out,
+                i_cs = ram_cs,
+                i_we = ram_we,
+                i_oe = ram_oe
+            )
+            m.submodules.memory = memory
+            m.d.comb += ram_we.eq(
+                    self.bus.cyc & 
+                    self.bus.stb & 
+                    self.bus.we)
+            m.d.comb += ram_cs.eq(1)
+            m.d.comb += ram_oe.eq(1)
+            m.d.comb += ram_data_in.eq(self.bus.dat_w)
+            m.d.comb += self.bus.dat_r.eq(ram_data_out)
+            with m.If(self.bus.cyc & self.bus.stb):
+                m.d.sync += flag.eq(1)
+            with m.If(flag):
+                m.d.sync += flag.eq(0)
+            m.d.comb += self.bus.ack.eq(flag)
+        else:
+            # Create the the memory used to store our data.
+            memory_depth = 2 ** self.local_addr_width
+            memory = Memory(width=self.data_width, depth=memory_depth, name=self.name, simulate=self.simulate)
+            # Grab a reference to the bits of our Wishbone bus that are relevant to us.
+    
+            # Create a read port, and connect it to our Wishbone bus.
+            m.submodules.rdport = read_port = memory.read_port()
             m.d.sync += [
-                write_port.addr.eq(local_address_bits),
-                write_port.data.eq(self.bus.dat_w)
+                read_port.addr.eq(local_address_bits),
+                self.bus.dat_r.eq(read_port.data)
             ]
-
-            # Generate the write enables for each of our words.
-            for i in range(self.bytes_per_word):
-                m.d.sync += write_port.en[i].eq(
-                    self.bus.cyc &    # Transaction is active.
-                    self.bus.stb &    # Valid data is being provided.
-                    self.bus.we  &    # This is a write.
-                    self.bus.sel[i]   # The relevant setion of the datum is being targeted.
-                )
-
-        m.d.sync += self.bus.ack.eq(0)
-        with m.If((self.bus.cyc == 1) & (self.bus.stb == 1)):
-            m.d.sync += self.counter.eq(1)
-        with m.If(self.counter != 0):
-            m.d.sync += self.counter.eq(self.counter + 1)
-            with m.If(self.counter + 1 == 3):
-                m.d.sync += self.bus.ack.eq(1)
+    
+            # If this is a read/write memory, create a write port, as well.
+            if not self.read_only:
+                m.submodules.wrport = write_port = memory.write_port(granularity=self.granularity)
+                m.d.sync += [
+                    write_port.addr.eq(local_address_bits),
+                    write_port.data.eq(self.bus.dat_w)
+                ]
+    
+                # Generate the write enables for each of our words.
+                for i in range(self.bytes_per_word):
+                    m.d.sync += write_port.en[i].eq(
+                        self.bus.cyc &    # Transaction is active.
+                        self.bus.stb &    # Valid data is being provided.
+                        self.bus.we  &    # This is a write.
+                        self.bus.sel[i]   # The relevant setion of the datum is being targeted.
+                    )
+    
+            m.d.sync += self.bus.ack.eq(0)
+            with m.If((self.bus.cyc == 1) & (self.bus.stb == 1)):
+                m.d.sync += self.counter.eq(1)
+            with m.If(self.counter != 0):
+                m.d.sync += self.counter.eq(self.counter + 1)
+                with m.If(self.counter + 1 == 3):
+                    m.d.sync += self.bus.ack.eq(1)
 
         return m
 
-
-class WishboneROM(WishboneRAM):
-    """ Wishbone-attached ROM. """
-
-    def __init__(self, data, *, addr_width, data_width=32, granularity=8, name="rom"):
-        """
-        Parameters:
-            data -- The data to fill the ROM with.
-
-            addr_width  -- The -bus- address width for the relevant memory. Determines the address size of the memory.
-                           Physical size is based on the data provided, as unused elements will be optimized away.
-            data_width  -- The width of each memory word.
-            granularity -- The number of bits of data per each address.
-            name        -- A descriptive name for the ROM.
-        """
-
-        super().__init__(
-            addr_width=addr_width,
-            data_width=data_width,
-            granularity=8,
-            init=data,
-            read_only=True,
-            name=name
-        )
