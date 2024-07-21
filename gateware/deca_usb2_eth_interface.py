@@ -147,8 +147,8 @@ class USB2EthernetInterface(Elaboratable):
             max_packet_size=512)
         usb.add_endpoint(ep3_out)
 
-        m.d.comb += eth_interface.inject_data.usb_stream_in.stream_eq(ep3_out.stream)
-        m.d.comb += ep2_in.stream.stream_eq(eth_interface.inject_data.usb_stream_out)
+        m.d.comb += eth_interface.inject_data.usb_in_to_fifo.usb_stream_in.stream_eq(ep3_out.stream)
+        m.d.comb += ep2_in.stream.stream_eq(eth_interface.inject_data.usb_out_from_fifo.usb_stream_out)
 
         m.d.comb += leds.eq(eth_interface.inject_data.leds)
 
