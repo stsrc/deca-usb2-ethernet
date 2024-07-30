@@ -142,8 +142,10 @@ static void read_bulk_callback(struct urb *urb)
 	case 0:
 		break;
 	case -ENOENT:
+		pr_info("%s():%d\n", __func__, __LINE__);
 		return;
 	default:
+		pr_info("%s():%d\n", __func__, __LINE__);
 		goto goon;
 	}
 
@@ -154,6 +156,7 @@ static void read_bulk_callback(struct urb *urb)
 	}
 
 	if (urb->actual_length < 4) {
+		pr_info("%s():%d\n", __func__, __LINE__);
 		goto goon;
 	}
 
@@ -214,6 +217,10 @@ static netdev_tx_t deca_ethintf_start_xmit(struct sk_buff *skb,
         netif_stop_queue(netdev);
         dev->tx_skb = skb;
 	count = skb->len;
+
+	if (count > DECA_MTU) {
+		pr_info("Sending packet bigger than 1540 bytes!\n");
+	}
 
 	usb_fill_bulk_urb(dev->tx_urb, dev->usbdev, usb_sndbulkpipe(dev->usbdev, 3),
                           skb->data, count, write_bulk_callback, dev);

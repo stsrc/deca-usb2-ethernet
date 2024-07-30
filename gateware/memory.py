@@ -109,7 +109,7 @@ class WishboneRAM(Elaboratable):
             content = open(file, "r")
             platform.add_file(file, content)
             memory = Instance("ram_sp_ar_aw",
-                i_clk = ClockSignal("usb"),
+                i_clk = ClockSignal("fast"),
                 i_address = local_address_bits,
                 i_dat_in = ram_data_in,
                 o_dat_out = ram_data_out,

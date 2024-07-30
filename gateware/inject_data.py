@@ -8,8 +8,6 @@ import os
 from amaranth import *
 from amaranth.lib.fifo import *
 from simple_ports_to_wb import SimplePortsToWb
-from usb_in_to_fifo import USBInToFifo
-from usb_out_from_fifo import USBOutFromFifo
 from amlib.stream  import StreamInterface
 
 __all__ = ["InjectData"]
@@ -33,16 +31,22 @@ class InjectData(Elaboratable):
         self.rx_pkt_len = Signal(16)
 
         self.busy_counter = Signal(8)
-        depth = int(1540 / 4 * 16)
-        if (simulation):
-            depth = int(64 / 4 * 16)
-        self.usb_in_fifo = SyncFIFO(width = 32, depth = depth)
-        self.usb_in_fifo_size = SyncFIFO(width = 32, depth = 16)
-        self.usb_in_to_fifo = USBInToFifo(simulation)
 
-        self.usb_out_fifo = SyncFIFO(width = 32, depth = depth)
-        self.usb_out_fifo_size = SyncFIFO(width = 32, depth = 16)
-        self.usb_out_from_fifo = USBOutFromFifo(simulation)
+        self.usb_in_fifo_r_en = Signal()
+        self.usb_in_fifo_r_rdy = Signal()
+        self.usb_in_fifo_r_data = Signal(32)
+
+        self.usb_in_fifo_size_r_en = Signal()
+        self.usb_in_fifo_size_r_rdy = Signal()
+        self.usb_in_fifo_size_r_data = Signal(11)
+
+        self.usb_out_fifo_w_en = Signal()
+        self.usb_out_fifo_w_rdy = Signal()
+        self.usb_out_fifo_w_data = Signal(32)
+
+        self.usb_out_fifo_size_w_en = Signal()
+        self.usb_out_fifo_size_w_rdy = Signal()
+        self.usb_out_fifo_size_w_data = Signal(11)
 
     def get_bus(self):
         return self.simple_ports_to_wb.bus
@@ -50,29 +54,6 @@ class InjectData(Elaboratable):
     def elaborate(self, platform):
         m = Module()
         m.submodules.simple_ports_to_wb = self.simple_ports_to_wb
-        m.submodules.usb_in_fifo = self.usb_in_fifo
-        m.submodules.usb_in_fifo_size = self.usb_in_fifo_size
-        m.submodules.usb_in_to_fifo = self.usb_in_to_fifo
-
-        m.submodules.usb_out_fifo = self.usb_out_fifo
-        m.submodules.usb_out_fifo_size = self.usb_out_fifo_size
-        m.submodules.usb_out_from_fifo = self.usb_out_from_fifo
-
-        m.d.comb += [
-                self.usb_in_to_fifo.fifo_w_rdy.eq(self.usb_in_fifo.w_rdy),
-                self.usb_in_fifo.w_en.eq(self.usb_in_to_fifo.fifo_w_en),
-                self.usb_in_fifo.w_data.eq(self.usb_in_to_fifo.fifo_w_data),
-                self.usb_in_to_fifo.fifo_count_w_rdy.eq(self.usb_in_fifo_size.w_rdy),
-                self.usb_in_fifo_size.w_en.eq(self.usb_in_to_fifo.fifo_count_w_en),
-                self.usb_in_fifo_size.w_data.eq(self.usb_in_to_fifo.fifo_count_w_data),
-
-                self.usb_out_from_fifo.fifo_r_rdy.eq(self.usb_out_fifo.r_rdy),
-                self.usb_out_fifo.r_en.eq(self.usb_out_from_fifo.fifo_r_en),
-                self.usb_out_from_fifo.fifo_r_data.eq(self.usb_out_fifo.r_data),
-                self.usb_out_from_fifo.fifo_count_r_rdy.eq(self.usb_out_fifo_size.r_rdy),
-                self.usb_out_fifo_size.r_en.eq(self.usb_out_from_fifo.fifo_count_r_en),
-                self.usb_out_from_fifo.fifo_count_r_data.eq(self.usb_out_fifo_size.r_data),
-        ]
 
         payload = Signal(32)
         counter = Signal(11, reset = 0)
@@ -220,12 +201,12 @@ class InjectData(Elaboratable):
                         m.next = "WRITE_ETHMAC_TX_BUF_DESC_0"
 
             with m.State("IDLE"):
-                with m.If(self.usb_in_fifo.r_rdy & 
-                          self.usb_in_fifo_size.r_rdy &
+                with m.If(self.usb_in_fifo_r_rdy & 
+                          self.usb_in_fifo_size_r_rdy &
                           ((self.head + 1) % 16 != self.tail)):
-                    m.d.sync += tx_pkt_len.eq(self.usb_in_fifo_size.r_data)
+                    m.d.sync += tx_pkt_len.eq(self.usb_in_fifo_size_r_data)
                     m.d.sync += counter.eq(0)
-                    m.d.sync += self.usb_in_fifo_size.r_en.eq(1)
+                    m.d.sync += self.usb_in_fifo_size_r_en.eq(1)
                     m.next = "WRITE_DATA_PREPARE"
                 with m.Elif(clear_tx_desc):
                     m.d.sync += clear_tx_desc.eq(0)
@@ -302,13 +283,14 @@ class InjectData(Elaboratable):
                 with m.If(self.simple_ports_to_wb.op_rdy_out):
                     m.d.sync += self.rx_pkt_len.eq(self.simple_ports_to_wb.data_out >> 16)
                     m.d.sync += counter.eq(0)
-                    with m.If(self.simple_ports_to_wb.data_out >> 16):
+                    with m.If(((self.simple_ports_to_wb.data_out >> 16) != 0) &
+                              (((self.simple_ports_to_wb.data_out >> 15) & 1) == 0)):
                         m.next = "GET_PACKET_DATA"
                     with m.Else():
                         m.next = "IDLE"
 
             with m.State("GET_PACKET_DATA"):
-                m.d.sync += self.usb_out_fifo.w_en.eq(0)
+                m.d.sync += self.usb_out_fifo_w_en.eq(0)
                 m.d.sync += pass_data.eq(0)
 
                 m.d.sync += self.simple_ports_to_wb.rd_strb_in.eq(1)
@@ -322,22 +304,22 @@ class InjectData(Elaboratable):
             with m.State("GET_PACKET_DATA_WAIT"):
                 m.d.sync += self.simple_ports_to_wb.rd_strb_in.eq(0)
                 with m.If(self.simple_ports_to_wb.op_rdy_out):
-                    m.d.sync += self.usb_out_fifo.w_data.eq(self.simple_ports_to_wb.data_out)
+                    m.d.sync += self.usb_out_fifo_w_data.eq(self.simple_ports_to_wb.data_out)
                     m.d.sync += pass_data.eq(1)
 
-                with m.If((self.simple_ports_to_wb.op_rdy_out | pass_data) & self.usb_out_fifo.w_rdy & self.usb_out_fifo_size.w_rdy):
-                    m.d.sync += self.usb_out_fifo.w_en.eq(1)
+                with m.If((self.simple_ports_to_wb.op_rdy_out | pass_data) & self.usb_out_fifo_w_rdy & self.usb_out_fifo_size_w_rdy):
+                    m.d.sync += self.usb_out_fifo_w_en.eq(1)
                     m.d.sync += counter.eq(counter + 4)
                     with m.If(counter + 4 < self.rx_pkt_len):
                         m.next = "GET_PACKET_DATA"
                     with m.Else():
                         m.next = "RESET_ETHMAC_RX_BUF_DESC_1"
-                        m.d.sync += self.usb_out_fifo_size.w_data.eq(self.rx_pkt_len)
-                        m.d.sync += self.usb_out_fifo_size.w_en.eq(1)
+                        m.d.sync += self.usb_out_fifo_size_w_data.eq(self.rx_pkt_len)
+                        m.d.sync += self.usb_out_fifo_size_w_en.eq(1)
 
             with m.State("RESET_ETHMAC_RX_BUF_DESC_1"):
-                m.d.sync += self.usb_out_fifo.w_en.eq(0)
-                m.d.sync += self.usb_out_fifo_size.w_en.eq(0)
+                m.d.sync += self.usb_out_fifo_w_en.eq(0)
+                m.d.sync += self.usb_out_fifo_size_w_en.eq(0)
                 m.d.sync += self.simple_ports_to_wb.wr_strb_in.eq(1)
                 with m.If(self.rd_tail != 15):
                     m.d.sync += self.simple_ports_to_wb.data_in.eq(0x0000c000)
@@ -351,18 +333,18 @@ class InjectData(Elaboratable):
                 m.d.sync += self.simple_ports_to_wb.wr_strb_in.eq(0)
                 with m.If(self.simple_ports_to_wb.op_rdy_out):
                         m.d.sync += self.rd_tail.eq((self.rd_tail + 1) % 16) 
-                        m.next = "IDLE"
+                        m.next = "GET_RX_PACKET_LENGTH"
 
             with m.State("WRITE_DATA_PREPARE"):
-                m.d.sync += self.usb_in_fifo_size.r_en.eq(0)
-                with m.If(self.usb_in_fifo.r_rdy):
-                    m.d.sync += payload.eq(self.usb_in_fifo.r_data)
-                    m.d.sync += self.usb_in_fifo.r_en.eq(1)
+                m.d.sync += self.usb_in_fifo_size_r_en.eq(0)
+                with m.If(self.usb_in_fifo_r_rdy):
+                    m.d.sync += payload.eq(self.usb_in_fifo_r_data)
+                    m.d.sync += self.usb_in_fifo_r_en.eq(1)
                     m.next = "WRITE_DATA"
 
             #TODO: check what happens if we have to wait for wb to end transaction...
             with m.State("WRITE_DATA"):
-                m.d.sync += self.usb_in_fifo.r_en.eq(0)
+                m.d.sync += self.usb_in_fifo_r_en.eq(0)
                 m.d.sync += self.simple_ports_to_wb.wr_strb_in.eq(1)
                 m.d.sync += self.simple_ports_to_wb.data_in.eq(payload)
                 m.d.sync += self.simple_ports_to_wb.sel_in.eq(0b1111)

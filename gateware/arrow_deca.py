@@ -35,9 +35,9 @@ class ArrowDECAClockAndResetController(Elaboratable):
             p_INCLK0_INPUT_FREQUENCY = 16666,
             p_COMPENSATE_CLOCK       = "CLK0",
             p_INTENDED_DEVICE_FAMILY = "MAX 10",
-            p_CLK1_DIVIDE_BY         = 1,
+            p_CLK1_DIVIDE_BY         = 6,
             p_CLK1_DUTY_CYCLE        = 50,
-            p_CLK1_MULTIPLY_BY       = 2,
+            p_CLK1_MULTIPLY_BY       = 15,
             p_CLK1_PHASE_SHIFT       = 0,
             p_OPERATION_MODE         = "NORMAL",
 
@@ -211,6 +211,14 @@ class ArrowDECAPlatform(IntelPlatform, LUNAPlatform):
             "31": "P9",
             "41": "V17", "42": "W3"}),
     ]
+
+    def toolchain_prepare(self, fragment, name, **kwargs):
+        overrides = {
+            "add_constraints":
+                 "derive_pll_clocks"
+        }
+        return super().toolchain_prepare(fragment, name, **overrides, **kwargs)
+
 
     def toolchain_program(self, products, name):
         quartus_pgm = os.environ.get("QUARTUS_PGM", "quartus_pgm")
