@@ -162,11 +162,7 @@ class WishboneRAM(Elaboratable):
     
             m.d.sync += self.bus.ack.eq(0)
             with m.If((self.bus.cyc == 1) & (self.bus.stb == 1)):
-                m.d.sync += self.counter.eq(1)
-            with m.If(self.counter != 0):
-                m.d.sync += self.counter.eq(self.counter + 1)
-                with m.If(self.counter + 1 == 3):
-                    m.d.sync += self.bus.ack.eq(1)
+                 m.d.sync += self.bus.ack.eq(1)
 
         return m
 
