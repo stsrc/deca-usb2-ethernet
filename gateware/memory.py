@@ -103,6 +103,7 @@ class WishboneRAM(Elaboratable):
         ram_data_out = Signal(self.data_width)
         data_ready = Signal(reset = 0)
         flag = Signal(1, reset = 0)
+        flag_reg = Signal(1, reset = 0)
         if not self.simulate:
             file="./synchr_memory.vhd"
             content = open(file, "r")
@@ -125,10 +126,13 @@ class WishboneRAM(Elaboratable):
             m.d.comb += ram_oe.eq(1)
             m.d.comb += ram_data_in.eq(self.bus.dat_w)
             m.d.comb += self.bus.dat_r.eq(ram_data_out)
-            with m.If(self.bus.cyc & self.bus.stb):
-                m.d.sync += flag.eq(1)
-            with m.If(flag):
-                m.d.sync += flag.eq(0)
+
+            with m.If(self.bus.we):
+                m.d.comb += flag.eq(self.bus.cyc & self.bus.stb)
+            with m.Else():
+                m.d.sync += flag_reg.eq(self.bus.cyc & self.bus.stb & ~flag_reg)
+                m.d.comb += flag.eq(flag_reg)
+
             m.d.comb += self.bus.ack.eq(flag)
         else:
             # Create the the memory used to store our data.
