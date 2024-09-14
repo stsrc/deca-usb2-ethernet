@@ -11,4 +11,8 @@ default:
 clean:
 	rm -f *.o *.ko *.mod.c modules.order Module.symvers
 
+load:
+	sudo rmmod deca_eth_interface
+	sudo insmod deca_eth_interface.ko
+
 endif
