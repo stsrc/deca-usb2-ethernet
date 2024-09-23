@@ -28,6 +28,7 @@ class SimplePortsToWb(Elaboratable):
         self.rd_strb_in = Signal()
         self.wr_strb_in = Signal()
         self.op_rdy_out = Signal()
+        self.wr_op_rdy_out = Signal()
 
     def elaborate(self, platform):
         m = Module()
@@ -41,7 +42,7 @@ class SimplePortsToWb(Elaboratable):
         m.d.comb += self.bus.cyc.eq(0)
         m.d.comb += self.bus.stb.eq(0)
         m.d.comb += self.bus.dat_w.eq(0)
-
+        m.d.comb += self.wr_op_rdy_out.eq(0)
 
         with m.If(self.rd_strb_in):
             m.d.comb += self.bus.adr.eq(self.address_in)
@@ -59,6 +60,5 @@ class SimplePortsToWb(Elaboratable):
             m.d.comb += self.bus.we.eq(1)
             m.d.comb += self.bus.cyc.eq(1)
             m.d.comb += self.bus.stb.eq(1)
-            with m.If(self.bus.ack):
-                m.d.sync += self.op_rdy_out.eq(1)
+            m.d.comb += self.wr_op_rdy_out.eq(self.bus.ack)
         return m

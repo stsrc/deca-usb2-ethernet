@@ -68,6 +68,7 @@ class InjectData(Elaboratable):
             m.d.sync += interrupt_generated.eq(1)
 
         m.d.comb += self.simple_ports_to_wb.wr_strb_in.eq(0)
+        m.d.comb += self.simple_ports_to_wb.rd_strb_in.eq(0)
         m.d.comb += self.simple_ports_to_wb.data_in.eq(0)
         m.d.comb += self.simple_ports_to_wb.sel_in.eq(0)
         m.d.comb += self.simple_ports_to_wb.address_in.eq(0)
@@ -93,8 +94,7 @@ class InjectData(Elaboratable):
                 m.d.comb += self.simple_ports_to_wb.data_in.eq(0x0000007f)
                 m.d.comb += self.simple_ports_to_wb.sel_in.eq(0b1111)
                 m.d.comb += self.simple_ports_to_wb.address_in.eq(0x08 >> 2)
-                with m.If(self.simple_ports_to_wb.op_rdy_out):
-                    m.d.comb += self.simple_ports_to_wb.wr_strb_in.eq(0)
+                with m.If(self.simple_ports_to_wb.wr_op_rdy_out):
                     m.next = "WRITE_ETHMAC_MAC_ADDR0"
 
             with m.State("WRITE_ETHMAC_MAC_ADDR0"):
@@ -102,9 +102,8 @@ class InjectData(Elaboratable):
                 m.d.comb += self.simple_ports_to_wb.data_in.eq(0x0a0a_0a0a)
                 m.d.comb += self.simple_ports_to_wb.sel_in.eq(0b1111)
                 m.d.comb += self.simple_ports_to_wb.address_in.eq(0x40 >> 2)
-#                m.d.sync += self.leds.eq(self.leds + 1)
-                with m.If(self.simple_ports_to_wb.op_rdy_out):
-                    m.d.comb += self.simple_ports_to_wb.wr_strb_in.eq(0)
+                with m.If(self.simple_ports_to_wb.wr_op_rdy_out):
+                    m.d.sync += self.leds.eq(self.leds + 1)
                     m.next = "WRITE_ETHMAC_MAC_ADDR1"
 
             with m.State("WRITE_ETHMAC_MAC_ADDR1"):
@@ -112,11 +111,10 @@ class InjectData(Elaboratable):
                 m.d.comb += self.simple_ports_to_wb.data_in.eq(0x0000_0a0a)
                 m.d.comb += self.simple_ports_to_wb.sel_in.eq(0b1111)
                 m.d.comb += self.simple_ports_to_wb.address_in.eq(0x44 >> 2)
-                with m.If(self.simple_ports_to_wb.op_rdy_out):
-#                    m.d.sync += self.leds.eq(self.leds + 1)
+                with m.If(self.simple_ports_to_wb.wr_op_rdy_out):
+                    m.d.sync += self.leds.eq(self.leds + 1)
                     m.next = "WRITE_ETHMAC_MODER"
                     m.d.sync += self.phy_resetn.eq(1)
-                    m.d.comb += self.simple_ports_to_wb.wr_strb_in.eq(0)
 
             with m.State("WRITE_ETHMAC_MODER"):
                 m.d.comb += self.simple_ports_to_wb.wr_strb_in.eq(1)
@@ -124,9 +122,8 @@ class InjectData(Elaboratable):
 #                m.d.sync += self.simple_ports_to_wb.data_in.eq(0x00008003) # crc add disabled
                 m.d.comb += self.simple_ports_to_wb.sel_in.eq(0b1111)
                 m.d.comb += self.simple_ports_to_wb.address_in.eq(0x00 >> 2)
-                with m.If(self.simple_ports_to_wb.op_rdy_out):
-#                    m.d.sync += self.leds.eq(self.leds + 1)
-                    m.d.comb += self.simple_ports_to_wb.wr_strb_in.eq(0)
+                with m.If(self.simple_ports_to_wb.wr_op_rdy_out):
+                    m.d.sync += self.leds.eq(self.leds + 1)
                     m.next = "WRITE_ETHMAC_RX_BUF_DESC_0"
 
             with m.State("WRITE_ETHMAC_RX_BUF_DESC_0"):
@@ -141,8 +138,7 @@ class InjectData(Elaboratable):
                 m.d.comb += self.simple_ports_to_wb.sel_in.eq(0b1111)
                 m.d.comb += self.simple_ports_to_wb.address_in.eq((0x400 + 
                                                                   (64 + self.rd_head) * 8 + 4) >> 2)
-                with m.If(self.simple_ports_to_wb.op_rdy_out):
-                    m.d.comb += self.simple_ports_to_wb.wr_strb_in.eq(0)
+                with m.If(self.simple_ports_to_wb.wr_op_rdy_out):
                     m.next = "WRITE_ETHMAC_RX_BUF_DESC_1"
 
             with m.State("WRITE_ETHMAC_RX_BUF_DESC_1"):
@@ -154,9 +150,8 @@ class InjectData(Elaboratable):
                 m.d.comb += self.simple_ports_to_wb.address_in.eq((0x400 + 
                                                                   (64 + self.rd_head) * 8) >> 2)
                 m.d.comb += self.simple_ports_to_wb.sel_in.eq(0b1111)
-                with m.If(self.simple_ports_to_wb.op_rdy_out):
+                with m.If(self.simple_ports_to_wb.wr_op_rdy_out):
                     m.d.sync += self.leds.eq(0b10000001)
-                    m.d.comb += self.simple_ports_to_wb.wr_strb_in.eq(0)
                     with m.If(((self.rd_head + 1) % 16) != self.rd_tail): 
                         m.d.sync += self.rd_head.eq((self.rd_head + 1) % 16)
                         m.next = "WRITE_ETHMAC_RX_BUF_DESC_0"
@@ -164,7 +159,7 @@ class InjectData(Elaboratable):
                         m.next = "WRITE_ETHMAC_TX_BUF_DESC_0"
 
             with m.State("WRITE_ETHMAC_TX_BUF_DESC_0"):
-#                m.d.sync += self.leds.eq(0b00001100)
+                m.d.sync += self.leds.eq(0b00001100)
                 m.d.comb += self.simple_ports_to_wb.wr_strb_in.eq(1)
                 if self.simulation:
                     m.d.comb += self.simple_ports_to_wb.data_in.eq(0x1000_0000 + (16 * self.head))
@@ -173,8 +168,7 @@ class InjectData(Elaboratable):
 
                 m.d.comb += self.simple_ports_to_wb.sel_in.eq(0b1111)
                 m.d.comb += self.simple_ports_to_wb.address_in.eq((0x400 + self.head * 8 + 4) >> 2)
-                with m.If(self.simple_ports_to_wb.op_rdy_out):
-                    m.d.comb += self.simple_ports_to_wb.wr_strb_in.eq(0)
+                with m.If(self.simple_ports_to_wb.wr_op_rdy_out):
                     m.d.sync += self.head.eq((self.head + 1) % 16)
                     with m.If(((self.head + 1) % 16) == 0):
                         m.next = "IDLE"
@@ -239,8 +233,7 @@ class InjectData(Elaboratable):
                 m.d.comb += self.simple_ports_to_wb.data_in.eq(0) #TODO: not needed 0bff or something, in a relation to datasheet?
                 m.d.comb += self.simple_ports_to_wb.sel_in.eq(0b1111)
                 m.d.comb += self.simple_ports_to_wb.address_in.eq(0x04 >> 2)
-                with m.If(self.simple_ports_to_wb.op_rdy_out):
-                    m.d.comb += self.simple_ports_to_wb.wr_strb_in.eq(0)
+                with m.If(self.simple_ports_to_wb.wr_op_rdy_out):
                     m.next = "IDLE"
 
             with m.State("GET_RX_PACKET_LENGTH"):
@@ -295,8 +288,7 @@ class InjectData(Elaboratable):
                 m.d.comb += self.simple_ports_to_wb.address_in.eq((0x400 + 
                                                                   (64 + self.rd_tail) * 8) >> 2)
                 m.d.comb += self.simple_ports_to_wb.sel_in.eq(0b1111)
-                with m.If(self.simple_ports_to_wb.op_rdy_out):
-                        m.d.comb += self.simple_ports_to_wb.wr_strb_in.eq(0)
+                with m.If(self.simple_ports_to_wb.wr_op_rdy_out):
                         m.d.sync += self.rd_tail.eq((self.rd_tail + 1) % 16) 
                         m.next = "GET_RX_PACKET_LENGTH"
 
@@ -317,9 +309,8 @@ class InjectData(Elaboratable):
                     m.d.comb += self.simple_ports_to_wb.address_in.eq(0x0400_0000 + ((16 * self.head + counter) >> 2))
                 else:
                     m.d.comb += self.simple_ports_to_wb.address_in.eq(0x0400_0000 + ((2048 * self.head + counter) >> 2))
-                with m.If(self.simple_ports_to_wb.op_rdy_out):
+                with m.If(self.simple_ports_to_wb.wr_op_rdy_out):
                     m.d.sync += counter.eq(counter + 4)
-                    m.d.comb += self.simple_ports_to_wb.wr_strb_in.eq(0)
                     with m.If(counter + 4 < tx_pkt_len):
                         m.next = "WRITE_DATA_PREPARE"
                     with m.Else():
@@ -333,8 +324,7 @@ class InjectData(Elaboratable):
                     m.d.comb += self.simple_ports_to_wb.data_in.eq((tx_pkt_len << 16) | 0xe000)
                 m.d.comb += self.simple_ports_to_wb.sel_in.eq(0b1111)
                 m.d.comb += self.simple_ports_to_wb.address_in.eq((0x400 + self.head * 8) >> 2)
-                with m.If(self.simple_ports_to_wb.op_rdy_out):
-                    m.d.comb += self.simple_ports_to_wb.wr_strb_in.eq(0)
+                with m.If(self.simple_ports_to_wb.wr_op_rdy_out):
                     m.d.sync += counter.eq(0)
                     m.d.sync += self.head.eq((self.head + 1) % 16)
                     m.next = "IDLE"
