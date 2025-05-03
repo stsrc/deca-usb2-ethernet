@@ -143,8 +143,10 @@ class USB2EthernetInterface(Elaboratable):
                 out_fifo_size.w_data.eq(eth_interface.inject_data.usb_out_fifo_size_w_data)
         ]
 
-        buttons = platform.request("button")
+        buttons = platform.request("button", 0)
+        buttons2 = platform.request("button", 1)
 
+        start_usb = Signal()
         resetsignal = Signal()
         resetsignal_fast = Signal()
         m.d.fast += [ resetsignal_fast.eq(resetsignal) ]
@@ -157,7 +159,7 @@ class USB2EthernetInterface(Elaboratable):
         ]
 
         m.d.sync += resetsignal.eq(buttons.i[0])
-        
+        m.d.sync += start_usb.eq(buttons2.i[0])
 
         leds = Cat([platform.request("led", i).o for i in range(8)])
 
@@ -203,6 +205,9 @@ class USB2EthernetInterface(Elaboratable):
         m.d.comb += ep2_in.stream.stream_eq(usb_out_from_fifo.usb_stream_out)
 
         m.d.comb += leds.eq(eth_interface.inject_data.leds)
+#        m.d.comb += leds.eq(usb_out_from_fifo.leds)
+
+        m.d.comb += eth_interface.inject_data.start_usb.eq(start_usb)
 
         # Connect our device as a high speed device
         m.d.comb += [

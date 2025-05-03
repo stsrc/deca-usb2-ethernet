@@ -3,13 +3,18 @@ all:
 		pip install amaranth-yosys && \
 		time python3 deca_usb2_eth_interface.py --keep-files
 
+inject_data-bench:
+	. venv/bin/activate && \
+		time python3 inject_data-bench.py
+	gtkwave ./inject_data.vcd
+
 eth_interface-bench:
-	. venv/bin/activate  && \
+	. venv/bin/activate && \
 		time python3 eth_interface-bench.py
 	gtkwave ./eth_interface.vcd
 
 simple_ports_to_wb-bench:
-	. venv/bin/activate  && \
+	. venv/bin/activate && \
 		time python3 simple_ports_to_wb-bench.py
 	gtkwave ./simple_ports_to_wb.vcd
 

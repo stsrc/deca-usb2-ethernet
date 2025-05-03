@@ -129,8 +129,13 @@ class WishboneRAM(Elaboratable):
 
             with m.If(self.bus.we):
                 m.d.comb += flag.eq(self.bus.cyc & self.bus.stb)
+                m.d.sync += flag_reg.eq(0)
             with m.Else():
-                m.d.sync += flag_reg.eq(self.bus.cyc & self.bus.stb & ~flag_reg)
+                with m.If(self.bus.cyc & self.bus.stb):
+                    m.d.sync += flag_reg.eq(~flag_reg)
+                with m.Else():
+                    m.d.sync += flag_reg.eq(0)
+
                 m.d.comb += flag.eq(flag_reg)
 
             m.d.comb += self.bus.ack.eq(flag)

@@ -19,6 +19,7 @@ class USBOutFromFifo(Elaboratable):
         self.fifo_r_data = Signal(32, reset = 0)
         self.fifo_count_r_data = Signal(11, reset = 0)
         self.end = Signal(reset = 0)
+        self.leds = Signal(8, reset = 0)
 
     def elaborate(self, platform):
         m = Module()
@@ -38,6 +39,7 @@ class USBOutFromFifo(Elaboratable):
             with m.State("RESET"):
                 m.next = "GET_PACKET_SIZE"
             with m.State("GET_PACKET_SIZE"):
+                m.d.sync += self.leds.eq(0b10000000)
                 with m.If(self.fifo_count_r_rdy):
                     m.d.sync += packet_size.eq(self.fifo_count_r_data)
                     m.d.sync += self.fifo_count_r_en.eq(1)
@@ -45,6 +47,7 @@ class USBOutFromFifo(Elaboratable):
                     m.next = "GET_DATA"
 
             with m.State("GET_DATA"):
+                m.d.sync += self.leds.eq(0b01000000)
                 m.d.sync += self.fifo_count_r_en.eq(0)
                 with m.If(self.fifo_r_rdy):
                     m.d.sync += self.fifo_r_en.eq(1)
@@ -52,6 +55,7 @@ class USBOutFromFifo(Elaboratable):
                     m.next = "SEND_DATA"
 
             with m.State("SEND_DATA"):
+                m.d.sync += self.leds.eq(0b00100000)
                 m.d.sync += self.fifo_r_en.eq(0)
                 with m.If(self.usb_stream_out.ready):
                     m.d.comb += self.usb_stream_out.valid.eq(1)
