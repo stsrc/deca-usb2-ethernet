@@ -178,7 +178,7 @@ class InjectData(Elaboratable):
                         m.next = "WRITE_ETHMAC_TX_BUF_DESC_0"
 
             with m.State("IDLE"):
-                dummy_send = 1
+                dummy_send = 0
                 m.d.sync += self.leds.eq(0b01010101)
                 if dummy_send:
                     m.d.sync += self.usb_out_fifo_w_en.eq(0)

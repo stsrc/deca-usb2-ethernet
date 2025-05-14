@@ -22,6 +22,6 @@ load:
 	quartus_pgm -m jtag -c "Arrow MAX 10 DECA" -o 'p;build/top.sof@1'
 
 init_env:
-	python3 -m venv venv &&
-		. venv/bin/activate &&
+	python3 -m venv venv && \
+		. venv/bin/activate && \
 		pip3 install -r requirements.txt

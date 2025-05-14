@@ -1,4 +1,8 @@
-git+https://github.com/stsrc/amaranth.git@v0.4
-git+https://github.com/stsrc/amaranth-boards.git
-git+https://github.com/stsrc/usb2-highspeed-core.git@temp
-git+https://github.com/stsrc/amlib@main
+wheel
+setuptools
+git+https://github.com/amaranth-lang/amaranth.git@v0.4.5
+git+https://github.com/amaranth-lang/amaranth-soc.git@59223a82399df45addf1db362ad6fb9670e72b51
+git+https://github.com/amaranth-farm/python-usb-descriptors.git
+git+https://github.com/amaranth-farm/usb2-highspeed-core.git
+git+https://github.com/amaranth-farm/amlib.git
+git+https://github.com/amaranth-farm/amaranth-boards.git

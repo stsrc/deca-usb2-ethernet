@@ -68,16 +68,14 @@ class EthInterface(Elaboratable):
                                                        granularity = 8, 
                                                        features = { "err" })
 
-
-        connect(m, m.submodules.wb_arbiter.bus, m.submodules.wb_decoder.bus)
-
-        wb_arbiter.add(m.submodules.inject_data.get_bus())
-
-        wb_arbiter.add(self.wb_mac_mux)
         self.wb_mux_mac.memory_map = MemoryMap(addr_width = 12, data_width = 8)
         wb_decoder.add(self.wb_mux_mac, addr = 0x00000000)
+        wb_decoder.add(m.submodules.wb_ram.bus, addr = 0x10000000)
 
-        wb_decoder.add(m.submodules.wb_ram.bus, addr = 0x10000000) 
+        wb_arbiter.add(m.submodules.inject_data.get_bus())
+        wb_arbiter.add(self.wb_mac_mux)
+        
+        m.d.comb += wb_arbiter.bus.connect(wb_decoder.bus)         
 
         if not self.simulation:
             phy = platform.request("phy")
