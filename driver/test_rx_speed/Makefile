@@ -9,7 +9,7 @@ default:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
 
 clean:
-	rm -f *.o *.ko *.mod.c *.mod modules.order Module.symvers
+	rm -f *.o *.ko *.mod.c modules.order Module.symvers
 
 load:
 	sudo rmmod deca_eth_interface

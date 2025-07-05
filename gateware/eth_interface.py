@@ -7,6 +7,7 @@ from amaranth_soc.wishbone.bus import Interface, Decoder, Arbiter
 from amaranth_soc.memory import MemoryMap
 
 from inject_data import InjectData
+from handle_mac_int import HandleMacInt
 
 from memory import WishboneRAM
 
@@ -23,6 +24,8 @@ class EthInterface(Elaboratable):
         self.wb_mux_mac = Interface(addr_width = 10, data_width = 32, granularity = 8, 
                                     features = { "err" })
         self.inject_data = InjectData(simulation) 
+
+        self.handle_mac_int = HandleMacInt()
 
     def elaborate(self, platform):
         m = Module()
@@ -46,7 +49,13 @@ class EthInterface(Elaboratable):
         mac_int = Signal()
 
         m.submodules.inject_data = self.inject_data
-        m.d.comb += self.inject_data.int.eq(mac_int)
+        m.submodules.handle_mac_int = self.handle_mac_int
+
+        m.d.comb += self.handle_mac_int.int.eq(mac_int)
+        m.d.comb += [ 
+                self.inject_data.irq_state.eq(self.handle_mac_int.irq_state),
+                self.inject_data.new_irq.eq(self.handle_mac_int.new_irq)
+        ]
 
         if self.simulation:
             m.submodules.wb_ram = WishboneRAM(addr_width=10, 
@@ -72,6 +81,7 @@ class EthInterface(Elaboratable):
         wb_decoder.add(self.wb_mux_mac, addr = 0x00000000)
         wb_decoder.add(m.submodules.wb_ram.bus, addr = 0x10000000)
 
+        wb_arbiter.add(self.handle_mac_int.get_bus())
         wb_arbiter.add(m.submodules.inject_data.get_bus())
         wb_arbiter.add(self.wb_mac_mux)
         

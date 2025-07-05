@@ -14,3 +14,4 @@ crc32-calc
 *.symvers
 *.order
 */test/*
+*/.vscode/*

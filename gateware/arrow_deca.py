@@ -37,7 +37,7 @@ class ArrowDECAClockAndResetController(Elaboratable):
             p_INTENDED_DEVICE_FAMILY = "MAX 10",
             p_CLK1_DIVIDE_BY         = 1,
             p_CLK1_DUTY_CYCLE        = 50,
-            p_CLK1_MULTIPLY_BY       = 1,
+            p_CLK1_MULTIPLY_BY       = 2,
             p_CLK1_PHASE_SHIFT       = 0,
             p_OPERATION_MODE         = "NORMAL",
 
@@ -93,7 +93,7 @@ class ArrowDECAPlatform(IntelPlatform, LUNAPlatform):
         *ButtonResources(
             pins="H21 H22",
             invert=True,
-            attrs=Attrs(io_standard="1.5 V")),
+            attrs=Attrs(io_standard="1.5 V SCHMITT TRIGGER")),
         *SwitchResources(
             pins="J21 J22",
             attrs=Attrs(io_standard="1.5 V")),
@@ -159,6 +159,8 @@ class ArrowDECAPlatform(IntelPlatform, LUNAPlatform):
             Subsignal("mdc",    Pins("R5", dir="o")),
             Attrs(io_standard="2.5 V")
         ),
+        Resource("uart", 0, Subsignal("tx", Pins("U15", dir="o")), Attrs(io_standard="3.3-V LVCMOS")
+        )
     ]
 
     connectors  = [

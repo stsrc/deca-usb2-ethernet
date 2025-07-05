@@ -22,21 +22,15 @@ class SimplePortsToWb(Elaboratable):
 
         self.address_in = Signal(addr_width)
         self.data_in = Signal(data_width)
-        self.data_out = Signal(data_width)
 
         self.rd_strb_in = Signal()
         self.wr_strb_in = Signal()
-        self.op_rdy_out = Signal()
         self.rd_op_rdy_out = Signal()
         self.rd_data_out = Signal(data_width)
         self.wr_op_rdy_out = Signal()
 
     def elaborate(self, platform):
         m = Module()
-
-
-        m.d.sync += self.op_rdy_out.eq(0)
-        m.d.sync += self.data_out.eq(0)
 
         m.d.comb += self.rd_op_rdy_out.eq(0)
         m.d.comb += self.rd_data_out.eq(0)
@@ -50,17 +44,15 @@ class SimplePortsToWb(Elaboratable):
 
         m.d.comb += self.bus.adr.eq(self.address_in)
 
-        with m.If(self.bus.ack):
-            m.d.comb += self.rd_op_rdy_out.eq(1)
-            m.d.comb += self.rd_data_out.eq(self.bus.dat_r)
+        m.d.comb += self.rd_data_out.eq(self.bus.dat_r)
+        m.d.comb += self.rd_op_rdy_out.eq(self.bus.ack)
+
         with m.If(self.rd_strb_in):
             m.d.comb += self.bus.sel.eq(0b1111)
             m.d.comb += self.bus.we.eq(0)
             m.d.comb += self.bus.cyc.eq(1)
             m.d.comb += self.bus.stb.eq(1)
-            with m.If(self.bus.ack):
-                m.d.sync += self.data_out.eq(self.bus.dat_r)
-                m.d.sync += self.op_rdy_out.eq(1)
+
         with m.Elif(self.wr_strb_in):
             m.d.comb += self.bus.dat_w.eq(self.data_in)
             m.d.comb += self.bus.sel.eq(0b1111)

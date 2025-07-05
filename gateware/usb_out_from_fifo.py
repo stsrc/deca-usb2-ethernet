@@ -30,36 +30,29 @@ class USBOutFromFifo(Elaboratable):
         usb_payload = Signal(8)
         packet_size = Signal(11)
         counter = Signal(11)
-        tmp = Signal(32)
 
         m.d.comb += self.usb_stream_out.valid.eq(0)
         m.d.comb += self.usb_stream_out.last.eq(0)
+
+        m.d.comb += self.fifo_r_en.eq(0)
+        m.d.comb += self.fifo_count_r_en.eq(0)
+
+        m.d.sync += self.leds.eq(self.fifo_count_r_rdy << 7 | self.fifo_r_rdy << 6)
 
         with m.FSM(reset="RESET"):
             with m.State("RESET"):
                 m.next = "GET_PACKET_SIZE"
             with m.State("GET_PACKET_SIZE"):
-                m.d.sync += self.leds.eq(0b10000000)
+                m.d.sync += counter.eq(0)
+                m.d.sync += packet_size.eq(self.fifo_count_r_data)
                 with m.If(self.fifo_count_r_rdy):
-                    m.d.sync += packet_size.eq(self.fifo_count_r_data)
-                    m.d.sync += self.fifo_count_r_en.eq(1)
-                    m.d.sync += counter.eq(0)
-                    m.next = "GET_DATA"
-
-            with m.State("GET_DATA"):
-                m.d.sync += self.leds.eq(0b01000000)
-                m.d.sync += self.fifo_count_r_en.eq(0)
-                with m.If(self.fifo_r_rdy):
-                    m.d.sync += self.fifo_r_en.eq(1)
-                    m.d.sync += tmp.eq(self.fifo_r_data)
+                    m.d.comb += self.fifo_count_r_en.eq(1)
                     m.next = "SEND_DATA"
 
             with m.State("SEND_DATA"):
-                m.d.sync += self.leds.eq(0b00100000)
-                m.d.sync += self.fifo_r_en.eq(0)
-                with m.If(self.usb_stream_out.ready):
+                with m.If(self.usb_stream_out.ready & self.fifo_r_rdy):
                     m.d.comb += self.usb_stream_out.valid.eq(1)
-                    m.d.comb += self.usb_stream_out.payload.eq(tmp >> 
+                    m.d.comb += self.usb_stream_out.payload.eq(self.fifo_r_data >> 
                             (((3 - (counter % 4)) * 8).as_unsigned()))
                     with m.If(counter == 0):
                         m.d.comb += self.usb_stream_out.first.eq(1)
@@ -68,11 +61,13 @@ class USBOutFromFifo(Elaboratable):
     
                     with m.If(counter == (packet_size - 1)):
                         m.d.comb += self.usb_stream_out.last.eq(1)
+                        m.d.comb += self.fifo_r_en.eq(1)
                         m.next = "GET_PACKET_SIZE"
                     with m.Else():
                         m.d.comb += self.usb_stream_out.last.eq(0)
                         m.d.sync += counter.eq(counter + 1)
                         with m.If((counter + 1) % 4 == 0):
-                            m.next = "GET_DATA"
+                            m.d.comb += self.fifo_r_en.eq(1)
+
 
         return m

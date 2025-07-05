@@ -5,6 +5,7 @@
 import os
 
 from amaranth            import *
+from amaranth.lib.cdc import FFSynchronizer
 
 from eth_interface import EthInterface
 
@@ -23,6 +24,7 @@ from usb_in_to_fifo import USBInToFifo
 from usb_out_from_fifo import USBOutFromFifo
 from amaranth.lib.fifo import *
 from requesthandlers        import VendorRequestHandlers
+from led_multiplexer import LEDMultiplexer
 
 class USB2EthernetInterface(Elaboratable):
     """ USB Ethernet interface """
@@ -61,11 +63,11 @@ class USB2EthernetInterface(Elaboratable):
 
             endpointDescriptor = standard.EndpointDescriptorEmitter()
             endpointDescriptor.bEndpointAddress = USBDirection.IN.to_endpoint_address(1) # EP 1 IN
-            endpointDescriptor.bmAttributes = USBTransferType.INTERRUPT | \
+            endpointDescriptor.bmAttributes = USBTransferType.BULK | \
                                               (USBSynchronizationType.NONE << 2) | \
                                               (USBUsageType.DATA << 4)
-            endpointDescriptor.wMaxPacketSize = 8
-            endpointDescriptor.bInterval = 11
+            endpointDescriptor.wMaxPacketSize = 512
+            endpointDescriptor.bInterval = 0
             interfaceDescriptor.add_subordinate_descriptor(endpointDescriptor)
 
             endpointDescriptor = standard.EndpointDescriptorEmitter()
@@ -93,14 +95,16 @@ class USB2EthernetInterface(Elaboratable):
 
     def elaborate(self, platform):
 
+        with_debug_usb = False
         m = Module()
 
         depth = int(1540 / 4 * 16)
 #       if (simulation):
 #           depth = int(64 / 4 * 16)
 
-        m.submodules.usb_in_to_fifo = usb_in_to_fifo = (USBInToFifo(simulation = False))
-        m.submodules.usb_out_from_fifo = usb_out_from_fifo = (USBOutFromFifo(simulation = False))
+        m.submodules.led_multiplexer = led_multiplexer = DomainRenamer("sync")(LEDMultiplexer(input_count = 4))
+        m.submodules.usb_in_to_fifo = usb_in_to_fifo = USBInToFifo(simulation = False)
+        m.submodules.usb_out_from_fifo = usb_out_from_fifo = USBOutFromFifo(simulation = False)
 
         m.submodules.usb_in_fifo = in_fifo = AsyncFIFO(width = 32, depth = depth, 
                                                        r_domain = "fast", w_domain = "sync")
@@ -140,11 +144,39 @@ class USB2EthernetInterface(Elaboratable):
                 out_fifo.w_data.eq(eth_interface.inject_data.usb_out_fifo_w_data),
                 out_fifo_size.w_en.eq(eth_interface.inject_data.usb_out_fifo_size_w_en),
                 eth_interface.inject_data.usb_out_fifo_size_w_rdy.eq(out_fifo_size.w_rdy),
-                out_fifo_size.w_data.eq(eth_interface.inject_data.usb_out_fifo_size_w_data)
+                out_fifo_size.w_data.eq(eth_interface.inject_data.usb_out_fifo_size_w_data),
         ]
 
-        buttons = platform.request("button", 0)
-        buttons2 = platform.request("button", 1)
+        if with_debug_usb:
+            m.submodules.usb_dbg_out_from_fifo = usb_dbg_out_from_fifo = USBOutFromFifo(simulation = False)
+            m.submodules.usb_dbg_out_fifo = out_dbg_fifo = AsyncFIFO(width = 32, depth = 5, 
+                                                             r_domain = "sync", w_domain = "fast")
+            m.submodules.usb_dbg_out_fifo_size = out_dbg_fifo_size = AsyncFIFO(width = 11, depth = 5,
+                                                             r_domain = "sync", w_domain = "fast")
+            m.d.comb += [
+                usb_dbg_out_from_fifo.fifo_r_rdy.eq(out_dbg_fifo.r_rdy),
+                out_dbg_fifo.r_en.eq(usb_dbg_out_from_fifo.fifo_r_en),
+                usb_dbg_out_from_fifo.fifo_r_data.eq(out_dbg_fifo.r_data),
+                usb_dbg_out_from_fifo.fifo_count_r_rdy.eq(out_dbg_fifo_size.r_rdy),
+                out_dbg_fifo_size.r_en.eq(usb_dbg_out_from_fifo.fifo_count_r_en),
+                usb_dbg_out_from_fifo.fifo_count_r_data.eq(out_dbg_fifo_size.r_data),
+
+                out_dbg_fifo.w_en.eq(eth_interface.inject_data.usb_out_dbg_fifo_w_en),
+                eth_interface.inject_data.usb_out_dbg_fifo_w_rdy.eq(out_dbg_fifo.w_rdy),
+                out_dbg_fifo.w_data.eq(eth_interface.inject_data.usb_out_dbg_fifo_w_data),
+                out_dbg_fifo_size.w_en.eq(eth_interface.inject_data.usb_out_dbg_fifo_size_w_en),
+                eth_interface.inject_data.usb_out_dbg_fifo_size_w_rdy.eq(out_dbg_fifo_size.w_rdy),
+                out_dbg_fifo_size.w_data.eq(eth_interface.inject_data.usb_out_dbg_fifo_size_w_data),
+            ]
+
+            uart_tx = platform.request("uart", 0).tx
+
+            m.d.comb += [
+                uart_tx.o.eq(eth_interface.inject_data.uart.tx)
+            ]
+
+        rst_button = platform.request("button", 0)
+        act_button = platform.request("button", 1)
 
         start_usb = Signal()
         resetsignal = Signal()
@@ -155,13 +187,29 @@ class USB2EthernetInterface(Elaboratable):
             m.submodules.eth_interface.wb_clk.eq(ClockSignal("fast")),
             m.submodules.eth_interface.wb_rst.eq(ResetSignal("fast")),
             ResetSignal("fast").eq(resetsignal_fast),
-            ResetSignal("usb").eq(resetsignal)
+            ResetSignal("usb").eq(resetsignal),
         ]
 
-        m.d.sync += resetsignal.eq(buttons.i[0])
-        m.d.sync += start_usb.eq(buttons2.i[0])
+        inject_data_leds_sync = Signal(8, reset = 0)
+        inject_data_debug_received_sync = Signal(8, reset = 0)
+
+        m.submodules.fast_sync_led_synchro = led_synchro = FFSynchronizer(i = eth_interface.inject_data.leds, o = inject_data_leds_sync)
+
+        m.submodules.fast_sync_debug_rcv_synchro = debug_rcv_synchro = FFSynchronizer(i = eth_interface.inject_data.debug_received, o = inject_data_debug_received_sync)
+
+        m.d.sync += resetsignal.eq(rst_button.i[0])
+        m.d.sync += start_usb.eq(act_button.i[0])
 
         leds = Cat([platform.request("led", i).o for i in range(8)])
+
+        m.d.comb += [
+                led_multiplexer.inputs[0].eq(usb_in_to_fifo.leds),
+                led_multiplexer.inputs[1].eq(inject_data_leds_sync),
+                led_multiplexer.inputs[2].eq(usb_out_from_fifo.leds),
+                led_multiplexer.inputs[3].eq(usb_in_to_fifo.debug_received),
+                led_multiplexer.do_switch.eq(start_usb),
+                leds.eq(led_multiplexer.output),
+        ]
 
         # Generate our domain clocks/resets.
         m.submodules.car = platform.clock_domain_generator()
@@ -188,7 +236,7 @@ class USB2EthernetInterface(Elaboratable):
 
         ep1_in = USBStreamInEndpoint(
             endpoint_number=1, # EP 1 IN INTERRUPT
-            max_packet_size=8)
+            max_packet_size=512)
         usb.add_endpoint(ep1_in)
 
         ep2_in = USBStreamInEndpoint(
@@ -204,7 +252,11 @@ class USB2EthernetInterface(Elaboratable):
         m.d.comb += usb_in_to_fifo.usb_stream_in.stream_eq(ep3_out.stream)
         m.d.comb += ep2_in.stream.stream_eq(usb_out_from_fifo.usb_stream_out)
 
-        m.d.comb += leds.eq(eth_interface.inject_data.leds)
+        if with_debug_usb:
+            m.d.comb += ep1_in.stream.stream_eq(usb_dbg_out_from_fifo.usb_stream_out)
+
+#        m.d.comb += leds.eq(usb_in_to_fifo.leds)
+#        m.d.comb += leds.eq(eth_interface.inject_data.leds)
 #        m.d.comb += leds.eq(usb_out_from_fifo.leds)
 
         m.d.comb += eth_interface.inject_data.start_usb.eq(start_usb)
