@@ -353,20 +353,20 @@ static void deca_ethintf_get_drvinfo(struct net_device *netdev,
 static int deca_ethintf_get_link_ksettings(struct net_device *netdev,
                                            struct ethtool_link_ksettings *ecmd)
 {
-       pr_info("%s():%d\n", __func__, __LINE__);
-       ecmd->base.speed = SPEED_100;
-       ecmd->base.autoneg = AUTONEG_DISABLE;
-       ecmd->base.duplex = DUPLEX_HALF;
-       ecmd->base.port = PORT_TP;
-       ecmd->base.phy_address = 0;
-       return 0;
+	DEBUG_PRINT();
+	ecmd->base.speed = SPEED_100;
+	ecmd->base.autoneg = AUTONEG_DISABLE;
+	ecmd->base.duplex = DUPLEX_HALF;
+	ecmd->base.port = PORT_TP;
+	ecmd->base.phy_address = 0;
+	return 0;
 }
 
 static int deca_ethintf_set_link_ksettings(struct net_device *netdev,
                                            const struct ethtool_link_ksettings *ecmd)
 {
-       pr_info("%s():%d\n", __func__, __LINE__);
-       return 0;
+	DEBUG_PRINT();
+	return 0;
 }
 
 static const struct ethtool_ops ops = {
@@ -379,10 +379,7 @@ static const struct ethtool_ops ops = {
 static u8 node_id[6] = {0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a};
 static void set_ethernet_addr(struct deca_ethintf *dev)
 {
-	strscpy(dev->netdev->name, "enp3s%d", sizeof(dev->netdev->name));
-	pr_info("%s\n", dev->netdev->name);
 	eth_hw_addr_set(dev->netdev, node_id);
-	pr_info("%s\n", dev->netdev->name);
 }
 
 static int deca_ethintf_probe(struct usb_interface *intf,
@@ -433,13 +430,13 @@ static int deca_ethintf_probe(struct usb_interface *intf,
                 free_netdev(netdev);
 		return -EIO;
         }
-	pr_info("%s\n", deca->netdev->name);
 	return 0;
 }
 
 static void deca_ethintf_disconnect(struct usb_interface *intf)
 {
 	struct deca_ethintf *deca = usb_get_intfdata(intf);
+	DEBUG_PRINT();
 	usb_set_intfdata(intf, NULL);
 	if (deca) {
 		unregister_netdev(deca->netdev);
@@ -453,6 +450,7 @@ static void deca_ethintf_disconnect(struct usb_interface *intf)
 static int deca_ethintf_suspend(struct usb_interface *intf,
 				pm_message_t message)
 {
+	DEBUG_PRINT();
 	return 0;
 }
 
