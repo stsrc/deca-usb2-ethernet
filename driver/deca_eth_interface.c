@@ -146,8 +146,8 @@ static void read_bulk_callback(struct urb *urb)
 	skb_put(dev->rx_skb, urb->actual_length);
 	dev->rx_skb->protocol = eth_type_trans(dev->rx_skb, netdev);
 	netif_rx(dev->rx_skb);
-//	netdev->stats.rx_packets++;
-//	netdev->stats.rx_bytes += urb->actual_length;
+	netdev->stats.rx_packets++;
+	netdev->stats.rx_bytes += urb->actual_length;
 
 goon:
 	dev->rx_skb = dev_alloc_skb(DECA_MTU);
