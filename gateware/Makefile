@@ -1,6 +1,6 @@
 all:
 	. venv/bin/activate && \
-		pip install amaranth-yosys && \
+		pip install amaranth-yosys==0.40.0.0.post100 && \
 		time python3 deca_usb2_eth_interface.py --keep-files
 
 inject_data-bench:
