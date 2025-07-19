@@ -1,0 +1,40 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Tue Jul  8 18:37:54 2025
+[*]
+[dumpfile] "/home/kgotfryd/programming/workspace/deca-usb2-ethernet/gateware/sptw_memory.vcd"
+[dumpfile_mtime] "Tue Jul  8 18:35:28 2025"
+[dumpfile_size] 630710
+[savefile] "/home/kgotfryd/programming/workspace/deca-usb2-ethernet/gateware/sptw-memory-bench.gtkw"
+[timestart] 0
+[size] 1872 1001
+[pos] -51 -51
+*-15.300000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] bench.
+[treeopen] bench.top.
+[sst_width] 297
+[signals_width] 166
+[sst_expanded] 1
+[sst_vpaned_height] 298
+@28
+bench.top.memory.clk
+@22
+bench.top.memory.bus__adr[13:0]
+bench.top.memory.bus__dat_r[31:0]
+bench.top.memory.bus__dat_w[31:0]
+@28
+bench.top.memory.bus__cyc
+bench.top.memory.bus__stb
+bench.top.memory.bus__we
+bench.top.memory.bus__ack
+@23
+bench.top.sptw.address_in[3:0]
+bench.top.sptw.data_in[31:0]
+bench.top.sptw.rd_data_out[31:0]
+@29
+bench.top.sptw.rd_op_rdy_out
+bench.top.sptw.rd_strb_in
+bench.top.sptw.wr_op_rdy_out
+bench.top.sptw.wr_strb_in
+[pattern_trace] 1
+[pattern_trace] 0

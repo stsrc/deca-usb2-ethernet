@@ -1,29 +1,60 @@
 [*]
 [*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
-[*] Fri Nov 11 18:56:28 2022
+[*] Tue Jul  8 18:59:45 2025
 [*]
 [dumpfile] "/home/kgotfryd/programming/workspace/deca-usb2-ethernet/gateware/eth_interface.vcd"
-[dumpfile_mtime] "Fri Nov 11 18:53:49 2022"
-[dumpfile_size] 64355
+[dumpfile_mtime] "Tue Jul  8 18:53:10 2025"
+[dumpfile_size] 85305
 [savefile] "/home/kgotfryd/programming/workspace/deca-usb2-ethernet/gateware/eth_interface-bench.gtkw"
 [timestart] 0
-[size] 1870 1006
+[size] 1872 1001
 [pos] -51 -51
-*-14.400000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-20.400000 3058100 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] bench.
 [treeopen] bench.top.
+[treeopen] bench.top.wb_ram.
 [sst_width] 297
-[signals_width] 158
+[signals_width] 493
 [sst_expanded] 1
-[sst_vpaned_height] 299
+[sst_vpaned_height] 648
 @28
 bench.top.inject_data.fsm_state
 bench.top.inject_data.wr_strb_in
 @22
 bench.top.inject_data.address_in[31:0]
 @28
-bench.top.inject_data.op_rdy_out
-@29
 bench.top.inject_data.clk
+@22
+bench.top.wb_ram.rdport.ram(0)[31:0]
+bench.top.wb_ram.rdport.ram(1)[31:0]
+bench.top.wb_ram.rdport.ram(2)[31:0]
+bench.top.wb_ram.rdport.ram(3)[31:0]
+bench.top.wb_ram.rdport.ram(16)[31:0]
+bench.top.wb_ram.rdport.ram(17)[31:0]
+bench.top.wb_ram.rdport.ram(18)[31:0]
+bench.top.wb_ram.rdport.ram(19)[31:0]
+@28
+bench.top.wb_ram.bus__ack
+bench.top.wb_decoder.wb_mux_mac__ack
+bench.top.wb_ram.bus__cyc
+bench.top.wb_ram.bus__stb
+bench.top.wb_ram.bus__we
+bench.top.wb_arbiter.wb_mac_mux__ack
+@22
+bench.top.wb_arbiter.wb_mac_mux__adr[31:0]
+@28
+bench.top.wb_arbiter.wb_mac_mux__cyc
+@22
+bench.top.wb_arbiter.wb_mac_mux__dat_w[31:0]
+@28
+bench.top.wb_arbiter.wb_mac_mux__stb
+bench.top.wb_arbiter.wb_mac_mux__we
+@22
+bench.top.wb_ram.rdport.ram(64)[31:0]
+bench.top.wb_ram.rdport.ram(65)[31:0]
+bench.top.wb_ram.rdport.ram(66)[31:0]
+bench.top.wb_ram.rdport.ram(67)[31:0]
+@29
+bench.top.inject_data.new_irq
 [pattern_trace] 1
 [pattern_trace] 0

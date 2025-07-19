@@ -130,7 +130,6 @@ class WishboneRAM(Elaboratable):
             flag &
             ~self.bus.ack)
 
-
         return m
 
 

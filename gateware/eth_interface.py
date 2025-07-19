@@ -1,6 +1,7 @@
 import os
 
 from amaranth            import *
+from amaranth.lib.fifo import *
 
 from amaranth.lib.wiring import connect
 from amaranth_soc.wishbone.bus import Interface, Decoder, Arbiter
@@ -10,6 +11,7 @@ from inject_data import InjectData
 from handle_mac_int import HandleMacInt
 
 from memory import WishboneRAM
+from usb_in_to_fifo import USBInToFifo
 
 __all__ = ["EthInterface"]
 class EthInterface(Elaboratable):
@@ -26,6 +28,14 @@ class EthInterface(Elaboratable):
         self.inject_data = InjectData(simulation) 
 
         self.handle_mac_int = HandleMacInt()
+
+        depth = int(1540 / 4 * 16)
+        if (simulation):
+            depth = int(64 / 4 * 16)
+        self.usb_in_fifo = (SyncFIFO(width = 32, depth = depth))
+        self.usb_in_fifo_size = (SyncFIFO(width = 32, depth = 16))
+
+        self.usb_in_to_fifo = USBInToFifo(simulation = simulation)
 
     def elaborate(self, platform):
         m = Module()
@@ -48,13 +58,31 @@ class EthInterface(Elaboratable):
         md_padoe = Signal()
         mac_int = Signal()
 
-        m.submodules.inject_data = self.inject_data
+        m.submodules.usb_in_fifo = in_fifo = self.usb_in_fifo
+        m.submodules.usb_in_fifo_size = in_fifo_size = self.usb_in_fifo_size
+        m.submodules.usb_in_to_fifo = usb_in_to_fifo = self.usb_in_to_fifo
+
+        m.submodules.inject_data = inject_data = self.inject_data
         m.submodules.handle_mac_int = self.handle_mac_int
 
         m.d.comb += self.handle_mac_int.int.eq(mac_int)
         m.d.comb += [ 
                 self.inject_data.irq_state.eq(self.handle_mac_int.irq_state),
-                self.inject_data.new_irq.eq(self.handle_mac_int.new_irq)
+                self.inject_data.new_irq.eq(self.handle_mac_int.new_irq),
+
+                usb_in_to_fifo.fifo_w_rdy.eq(in_fifo.w_rdy), 
+                in_fifo.w_en.eq(usb_in_to_fifo.fifo_w_en),
+                in_fifo.w_data.eq(usb_in_to_fifo.fifo_w_data),
+                usb_in_to_fifo.fifo_count_w_rdy.eq(in_fifo_size.w_rdy),
+                in_fifo_size.w_en.eq(usb_in_to_fifo.fifo_count_w_en),
+                in_fifo_size.w_data.eq(usb_in_to_fifo.fifo_count_w_data),
+
+                in_fifo.r_en.eq(inject_data.usb_in_fifo_r_en),
+                inject_data.usb_in_fifo_r_rdy.eq(in_fifo.r_rdy),
+                inject_data.usb_in_fifo_r_data.eq(in_fifo.r_data),
+                in_fifo_size.r_en.eq(inject_data.usb_in_fifo_size_r_en),
+                inject_data.usb_in_fifo_size_r_rdy.eq(in_fifo_size.r_rdy),
+                inject_data.usb_in_fifo_size_r_data.eq(in_fifo_size.r_data),
         ]
 
         if self.simulation:

@@ -33,6 +33,7 @@ class USBOutFromFifo(Elaboratable):
 
         m.d.comb += self.usb_stream_out.valid.eq(0)
         m.d.comb += self.usb_stream_out.last.eq(0)
+        m.d.comb += self.usb_stream_out.payload.eq(0)
 
         m.d.comb += self.fifo_r_en.eq(0)
         m.d.comb += self.fifo_count_r_en.eq(0)

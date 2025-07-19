@@ -21,7 +21,7 @@ class ArrowDECAClockAndResetController(Elaboratable):
         # Create our domains; but don't do anything else for them, for now.
         m.domains.sync = ClockDomain()
         m.domains.usb  = ClockDomain()
-        m.domains.fast = ClockDomain()
+        #m.domains.fast = ClockDomain()
 
         clocks = Signal(2)
         locked = Signal()
@@ -37,7 +37,7 @@ class ArrowDECAClockAndResetController(Elaboratable):
             p_INTENDED_DEVICE_FAMILY = "MAX 10",
             p_CLK1_DIVIDE_BY         = 1,
             p_CLK1_DUTY_CYCLE        = 50,
-            p_CLK1_MULTIPLY_BY       = 2,
+            p_CLK1_MULTIPLY_BY       = 1,
             p_CLK1_PHASE_SHIFT       = 0,
             p_OPERATION_MODE         = "NORMAL",
 
@@ -51,7 +51,7 @@ class ArrowDECAClockAndResetController(Elaboratable):
         m.d.comb += [
             ClockSignal("usb") .eq(clocks[0]),
             ClockSignal("sync").eq(ClockSignal("usb")),
-            ClockSignal("fast").eq(clocks[1]),
+            #ClockSignal("fast").eq(clocks[1]),
         ]
 
         # Use a blinky to see if the clock signal works

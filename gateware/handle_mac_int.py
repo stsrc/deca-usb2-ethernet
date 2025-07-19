@@ -45,16 +45,17 @@ class HandleMacInt(Elaboratable):
                 m.d.comb += self.simple_ports_to_wb.rd_strb_in.eq(1)
                 m.d.comb += self.simple_ports_to_wb.data_in.eq(0)
                 m.d.comb += self.simple_ports_to_wb.address_in.eq(0x04 >> 2)
-                with m.If(self.simple_ports_to_wb.rd_op_rdy_out):
+                with m.If(self.simple_ports_to_wb.op_rdy_out):
+                    m.d.comb += self.simple_ports_to_wb.rd_strb_in.eq(0)
                     m.d.sync += self.irq_state.eq(self.simple_ports_to_wb.rd_data_out)
                     m.d.sync += self.new_irq.eq(1)
-                    m.d.comb += self.simple_ports_to_wb.rd_strb_in.eq(0)
                     m.next = "CLEAR_IRQ"
 
             with m.State("CLEAR_IRQ"):
                 m.d.comb += self.simple_ports_to_wb.wr_strb_in.eq(1)
                 m.d.comb += self.simple_ports_to_wb.data_in.eq(0b01111111)
                 m.d.comb += self.simple_ports_to_wb.address_in.eq(0x04 >> 2)
-                with m.If(self.simple_ports_to_wb.wr_op_rdy_out):
+                with m.If(self.simple_ports_to_wb.op_rdy_out):
+                    m.d.comb += self.simple_ports_to_wb.wr_strb_in.eq(0)
                     m.next = "IDLE"
         return m

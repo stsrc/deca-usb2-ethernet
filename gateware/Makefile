@@ -33,6 +33,11 @@ memory-bench:
 		time python3 memory-bench.py
 	gtkwave ./memory.vcd
 
+test-fifo:
+	. venv/bin/activate && \
+		time python3 test_fifo.py
+	gtkwave ./test_fifo.vcd
+
 sptw_memory-bench:
 	. venv/bin/activate && \
 		time python3 sptw_memory-bench.py

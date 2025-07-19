@@ -1,0 +1,36 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Sun Jul  6 21:29:21 2025
+[*]
+[dumpfile] "/home/kgotfryd/programming/workspace/deca-usb2-ethernet/gateware/memory.vcd"
+[dumpfile_mtime] "Sun Jul  6 21:28:25 2025"
+[dumpfile_size] 2358
+[savefile] "/home/kgotfryd/programming/workspace/deca-usb2-ethernet/gateware/memory-bench.gtkw"
+[timestart] 0
+[size] 1872 1001
+[pos] -51 -51
+*-14.100000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] bench.
+[treeopen] bench.top.
+[sst_width] 297
+[signals_width] 158
+[sst_expanded] 1
+[sst_vpaned_height] 298
+@28
+bench.top.rdport.clk
+bench.top.bus__ack
+bench.top.bus__cyc
+bench.top.bus__stb
+bench.top.bus__we
+bench.top.bus__adr[1:0]
+@22
+bench.top.bus__dat_w[31:0]
+bench.top.rdport.ram(0)[31:0]
+bench.top.rdport.ram(1)[31:0]
+@29
+bench.top.rdport.ram_w_addr[1:0]
+@23
+bench.top.rdport.ram_w_data[31:0]
+bench.top.rdport.ram_w_en[3:0]
+[pattern_trace] 1
+[pattern_trace] 0

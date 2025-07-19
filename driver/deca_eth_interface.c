@@ -39,13 +39,13 @@ struct deca_skb_data {
 	struct deca_ethintf *deca;
 };
 
-#define DECA_REQT_READ       0xc0
+#define DECA_REQT_READ	0xc0
 #define DECA_REQT_WRITE      0x40
 #define DECA_REQ_GET_REGS    0x05
 #define DECA_REQ_SET_REGS    0x05
 
 #define INTBUFSIZE 4
-#define DECA_MTU 1540
+#define DECA_MTU 1536
 
 static int alloc_urb(struct deca_ethintf *dev)
 {
@@ -63,13 +63,13 @@ static int alloc_urb(struct deca_ethintf *dev)
 
 static void free_urb(struct deca_ethintf *dev)
 {
-        usb_free_urb(dev->intr_urb);
+	usb_free_urb(dev->intr_urb);
 	usb_free_urb(dev->rx_urb);
 }
 
 static void unlink_urb(struct deca_ethintf *dev)
 {
-        usb_kill_urb(dev->intr_urb);
+	usb_kill_urb(dev->intr_urb);
 	usb_kill_urb(dev->rx_urb);
 }
 
@@ -94,9 +94,9 @@ static int fill_rx(struct deca_ethintf *dev)
 	usb_fill_bulk_urb(urb, dev->usbdev, usb_rcvbulkpipe(dev->usbdev, 2),
 			  skb->data, DECA_MTU, read_bulk_callback, dev);
 	if ((status = usb_submit_urb(urb, GFP_KERNEL))) {
-	        if (status == -ENODEV)
-		        netif_device_detach(dev->netdev);
-	        pr_info("rx_urb submit failed: %d\n", status);
+		if (status == -ENODEV)
+			netif_device_detach(dev->netdev);
+		pr_info("rx_urb submit failed: %d\n", status);
 		return -ENODEV;
 	}
 	return 0;
@@ -152,11 +152,11 @@ static void read_bulk_callback(struct urb *urb)
 goon:
 	dev->rx_skb = dev_alloc_skb(DECA_MTU);
 	usb_fill_bulk_urb(urb, dev->usbdev, usb_rcvbulkpipe(dev->usbdev, 2),
-		          dev->rx_skb->data, DECA_MTU, read_bulk_callback, dev);
-        if ((status = usb_submit_urb(urb, GFP_ATOMIC))) {
-	        if (status == -ENODEV)
-		        netif_device_detach(dev->netdev);
-                pr_info("rx_urb submit failed: %d\n", status);
+			  dev->rx_skb->data, DECA_MTU, read_bulk_callback, dev);
+	if ((status = usb_submit_urb(urb, GFP_ATOMIC))) {
+		if (status == -ENODEV)
+			netif_device_detach(dev->netdev);
+		pr_info("rx_urb submit failed: %d\n", status);
 	}
 }
 
@@ -164,8 +164,6 @@ static void read_intr_callback(struct urb *urb)
 {
 	struct deca_ethintf *dev;
 	int status = urb->status;
-	int val;
-	static int last_val = 0;
 
 	dev = urb->context;
 	if (!dev) {
@@ -184,22 +182,11 @@ static void read_intr_callback(struct urb *urb)
 		return;
 	}
 
-
-	val = (int) dev->intr_buff[0] << 24 |
-		(int) dev->intr_buff[1] << 16 |
-		(int) dev->intr_buff[2] << 8 |
-		(int) dev->intr_buff[3];
-	if ((val & 0x80000000 && val != last_val) || (val & 0x10000000)) {
-		//pr_info("%s():%d, 0x%08x\n", __func__, __LINE__, val);
-		if (val & 0x80000000)
-			last_val = val;
-	}
-
-        usb_fill_bulk_urb(dev->intr_urb, dev->usbdev, usb_rcvbulkpipe(dev->usbdev, 1),
-                      dev->intr_buff, INTBUFSIZE, read_intr_callback, dev);
-        if ((status = usb_submit_urb(dev->intr_urb, GFP_ATOMIC))) {
+	usb_fill_bulk_urb(dev->intr_urb, dev->usbdev, usb_rcvbulkpipe(dev->usbdev, 1),
+		      dev->intr_buff, INTBUFSIZE, read_intr_callback, dev);
+	if ((status = usb_submit_urb(dev->intr_urb, GFP_ATOMIC))) {
 		pr_info("%s():%d, status = %d\n", __func__, __LINE__, status);
-        }
+	}
 }
 
 
@@ -210,19 +197,20 @@ static void write_bulk_callback(struct urb *urb)
 	struct sk_buff *skb;
 	skb = urb->context;
 	if (!skb) {
+		DEBUG_PRINT();
 		return;
 	}
 	deca = ((struct deca_skb_data *)skb->cb)->deca;
 	if (!deca) {
 		dev_kfree_skb_irq(skb);
+		DEBUG_PRINT();
 		return;
 	}
 
 	netif_trans_update(deca->netdev);
-	if (deca->tx_queue_cnt == TX_QUEUE_LIMIT && netif_queue_stopped(deca->netdev)) {
-        	netif_wake_queue(deca->netdev);
+	if (--deca->tx_queue_cnt == (TX_QUEUE_LIMIT - 1) && netif_queue_stopped(deca->netdev)) {
+		netif_wake_queue(deca->netdev);
 	}
-	deca->tx_queue_cnt--;
 
 	deca->netdev->stats.tx_packets++;
 	deca->netdev->stats.tx_bytes += skb->len;
@@ -232,20 +220,22 @@ static void write_bulk_callback(struct urb *urb)
 }
 
 static netdev_tx_t deca_ethintf_start_xmit(struct sk_buff *skb,
-                                           struct net_device *netdev)
+					   struct net_device *netdev)
 {
 	struct deca_skb_data *data;
-    struct deca_ethintf *dev = netdev_priv(netdev);
-    int count, res;
+	struct deca_ethintf *dev = netdev_priv(netdev);
+	int count, res;
 	struct urb *urb;
+	u8 *hdr;
 
 	if (!skb) {
+		DEBUG_PRINT();
 		return NETDEV_TX_OK;
 	}
 
 	count = skb->len;
 	if (count > DECA_MTU) {
-		pr_info("Dropping packet bigger than 1540 bytes!\n");
+		pr_info("Dropping packet bigger than mtu limit!\n");
 		goto drop;
 	} else if (count <= 4) {
 		pr_info("dropping smaller than 4 bytes\n");
@@ -253,9 +243,13 @@ static netdev_tx_t deca_ethintf_start_xmit(struct sk_buff *skb,
 	}
 
 	if (netif_queue_stopped(netdev)) {
+		DEBUG_PRINT();
 		goto drop;
 	}
 
+	hdr = skb_push(skb, 2);
+	*(u16 *)hdr = cpu_to_be16((u16)count);
+	count = skb->len;
 
 	data = (struct deca_skb_data *) skb->cb;
 	data->deca = dev;
@@ -263,7 +257,7 @@ static netdev_tx_t deca_ethintf_start_xmit(struct sk_buff *skb,
 	urb = usb_alloc_urb(0, GFP_ATOMIC);
 
 	usb_fill_bulk_urb(urb, dev->usbdev, usb_sndbulkpipe(dev->usbdev, 3),
-                          skb->data, count, write_bulk_callback, skb);
+			  skb->data, count, write_bulk_callback, skb);
 
 	if ((res = usb_submit_urb(urb, GFP_ATOMIC))) {
 		/* Can we get/handle EPIPE here? */
@@ -293,6 +287,7 @@ drop:
 
 static void deca_ethintf_tx_timeout(struct net_device *netdev, unsigned int txqueue)
 {
+	DEBUG_PRINT();
 	dev_warn(&netdev->dev, "Tx timeout, txqueue = %u\n", txqueue);
 	netdev->stats.tx_errors++;
 }
@@ -303,14 +298,16 @@ static int deca_ethintf_open(struct net_device *netdev)
 	int res = 0;
 	struct deca_ethintf *dev = netdev_priv(netdev);
 
-        /*usb_fill_bulk_urb(dev->intr_urb, dev->usbdev, usb_rcvbulkpipe(dev->usbdev, 1),
-                      dev->intr_buff, INTBUFSIZE, read_intr_callback, dev);
-        if ((res = usb_submit_urb(dev->intr_urb, GFP_KERNEL))) {
-                if (res == -ENODEV)
-                        netif_device_detach(dev->netdev);
-                dev_warn(&netdev->dev, "intr_urb submit failed: %d\n", res);
-                return res;
-        }*/
+#if 0
+	usb_fill_bulk_urb(dev->intr_urb, dev->usbdev, usb_rcvbulkpipe(dev->usbdev, 1),
+		      dev->intr_buff, INTBUFSIZE, read_intr_callback, dev);
+	if ((res = usb_submit_urb(dev->intr_urb, GFP_KERNEL))) {
+		if (res == -ENODEV)
+			netif_device_detach(dev->netdev);
+		dev_warn(&netdev->dev, "intr_urb submit failed: %d\n", res);
+		return res;
+	}
+#endif
 
 	if (fill_rx(dev)) {
 		return -ENOMEM;
@@ -346,12 +343,12 @@ static const struct net_device_ops deca_ethintf_netdev_ops = {
 
 
 static void deca_ethintf_get_drvinfo(struct net_device *netdev,
-                                    struct ethtool_drvinfo *info)
+				    struct ethtool_drvinfo *info)
 {
 }
 
 static int deca_ethintf_get_link_ksettings(struct net_device *netdev,
-                                           struct ethtool_link_ksettings *ecmd)
+					   struct ethtool_link_ksettings *ecmd)
 {
 	DEBUG_PRINT();
 	ecmd->base.speed = SPEED_100;
@@ -363,17 +360,17 @@ static int deca_ethintf_get_link_ksettings(struct net_device *netdev,
 }
 
 static int deca_ethintf_set_link_ksettings(struct net_device *netdev,
-                                           const struct ethtool_link_ksettings *ecmd)
+					   const struct ethtool_link_ksettings *ecmd)
 {
 	DEBUG_PRINT();
 	return 0;
 }
 
 static const struct ethtool_ops ops = {
-        .get_drvinfo = deca_ethintf_get_drvinfo,
-        .get_link = ethtool_op_get_link,
-        .get_link_ksettings = deca_ethintf_get_link_ksettings,
-       .set_link_ksettings = deca_ethintf_set_link_ksettings,
+	.get_drvinfo = deca_ethintf_get_drvinfo,
+	.get_link = ethtool_op_get_link,
+	.get_link_ksettings = deca_ethintf_get_link_ksettings,
+	.set_link_ksettings = deca_ethintf_set_link_ksettings,
 };
 
 static u8 node_id[6] = {0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a};
@@ -383,7 +380,7 @@ static void set_ethernet_addr(struct deca_ethintf *dev)
 }
 
 static int deca_ethintf_probe(struct usb_interface *intf,
-                              const struct usb_device_id *id)
+			      const struct usb_device_id *id)
 {
 	struct net_device *netdev;
 	struct deca_ethintf *deca;
@@ -394,7 +391,7 @@ static int deca_ethintf_probe(struct usb_interface *intf,
 	netdev = alloc_etherdev(sizeof(struct deca_ethintf));
 	if (!netdev) {
 		printk(KERN_ERR "%s():%d, alloc_etherdev() failed!",
-		       __FUNCTION__, __LINE__);
+			__FUNCTION__, __LINE__);
 		return -ENOMEM;
 	}
 	deca = netdev_priv(netdev);
@@ -405,31 +402,31 @@ static int deca_ethintf_probe(struct usb_interface *intf,
 	netdev->netdev_ops = &deca_ethintf_netdev_ops;
 	netdev->ethtool_ops = &ops;
 
-        deca->intr_buff = kmalloc(INTBUFSIZE, GFP_KERNEL);
-        if (!deca->intr_buff) {
-                free_netdev(netdev);
-                return -ENOMEM;
-        }
+	deca->intr_buff = kmalloc(INTBUFSIZE, GFP_KERNEL);
+	if (!deca->intr_buff) {
+		free_netdev(netdev);
+		return -ENOMEM;
+	}
 
 	if (!alloc_urb(deca)) {
 		dev_err(&intf->dev, "out of memory\n");
-                free_netdev(netdev);
+		free_netdev(netdev);
 		return -ENOMEM;
 	}
 
 	set_ethernet_addr(deca);
 
-        usb_set_intfdata(intf, deca);
+	usb_set_intfdata(intf, deca);
 	SET_NETDEV_DEV(netdev, &intf->dev);
-       if (register_netdev(netdev) != 0) {
-                dev_err(&intf->dev, "couldn't register the device\n");
+	if (register_netdev(netdev) != 0) {
+		dev_err(&intf->dev, "couldn't register the device\n");
 		usb_set_intfdata(intf, NULL);
 		unlink_urb(deca);
 		free_urb(deca);
 		free_rx_skb(deca);
-                free_netdev(netdev);
+		free_netdev(netdev);
 		return -EIO;
-        }
+	}
 	return 0;
 }
 
