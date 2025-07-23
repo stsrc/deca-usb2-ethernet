@@ -12,7 +12,7 @@
 #include <linux/slab.h>
 #include <linux/usb.h>
 
-static const char driver_name [] = "deca_eth_interface";
+static const char driver_name[] = "deca_eth_interface";
 
 static const struct usb_device_id deca_ethintf_table[] = {
 	{USB_DEVICE(0x1209, 0x4711)},
@@ -73,7 +73,8 @@ static void unlink_urb(struct deca_ethintf *dev)
 	usb_kill_urb(dev->rx_urb);
 }
 
-static void free_rx_skb(struct deca_ethintf *dev) {
+static void free_rx_skb(struct deca_ethintf *dev)
+{
 	if (dev->rx_skb) {
 		dev_kfree_skb(dev->rx_skb);
 	}
@@ -86,6 +87,7 @@ static int fill_rx(struct deca_ethintf *dev)
 	int status;
 	struct sk_buff *skb = dev_alloc_skb(DECA_MTU);
 	struct urb *urb = dev->rx_urb;
+
 	if (!skb) {
 		DEBUG_PRINT();
 		return -ENOMEM;
@@ -93,7 +95,8 @@ static int fill_rx(struct deca_ethintf *dev)
 	dev->rx_skb = skb;
 	usb_fill_bulk_urb(urb, dev->usbdev, usb_rcvbulkpipe(dev->usbdev, 2),
 			  skb->data, DECA_MTU, read_bulk_callback, dev);
-	if ((status = usb_submit_urb(urb, GFP_KERNEL))) {
+	status = usb_submit_urb(urb, GFP_KERNEL);
+	if (status) {
 		if (status == -ENODEV)
 			netif_device_detach(dev->netdev);
 		pr_info("rx_urb submit failed: %d\n", status);
@@ -121,7 +124,7 @@ static void read_bulk_callback(struct urb *urb)
 		return;
 	}
 
-	switch(status) {
+	switch (status) {
 	case 0:
 		break;
 	case -ENOENT:
@@ -153,13 +156,15 @@ goon:
 	dev->rx_skb = dev_alloc_skb(DECA_MTU);
 	usb_fill_bulk_urb(urb, dev->usbdev, usb_rcvbulkpipe(dev->usbdev, 2),
 			  dev->rx_skb->data, DECA_MTU, read_bulk_callback, dev);
-	if ((status = usb_submit_urb(urb, GFP_ATOMIC))) {
+	status = usb_submit_urb(urb, GFP_ATOMIC);
+	if (status) {
 		if (status == -ENODEV)
 			netif_device_detach(dev->netdev);
 		pr_info("rx_urb submit failed: %d\n", status);
 	}
 }
 
+#if 0
 static void read_intr_callback(struct urb *urb)
 {
 	struct deca_ethintf *dev;
@@ -167,34 +172,35 @@ static void read_intr_callback(struct urb *urb)
 
 	dev = urb->context;
 	if (!dev) {
-		printk(KERN_ERR "%s():%d\n", __FUNCTION__, __LINE__);
+		printk(KERN_ERR "%s():%d\n", __func__, __LINE__);
 		return;
 	}
 
-	switch(status) {
+	switch (status) {
 	case 0:
 		break;
 	case -ENOENT:
-		pr_info("%s():%d\n", __func__, __LINE__);
+		DEBUG_PRINT();
 		return;
 	default:
-		pr_info("%s():%d\n", __func__, __LINE__);
+		DEBUG_PRINT();
 		return;
 	}
 
 	usb_fill_bulk_urb(dev->intr_urb, dev->usbdev, usb_rcvbulkpipe(dev->usbdev, 1),
 		      dev->intr_buff, INTBUFSIZE, read_intr_callback, dev);
-	if ((status = usb_submit_urb(dev->intr_urb, GFP_ATOMIC))) {
+	status = usb_submit_urb(dev->intr_urb, GFP_ATOMIC);
+	if (status) {
 		pr_info("%s():%d, status = %d\n", __func__, __LINE__, status);
 	}
 }
-
-
+#endif
 
 static void write_bulk_callback(struct urb *urb)
 {
 	struct deca_ethintf *deca;
 	struct sk_buff *skb;
+
 	skb = urb->context;
 	if (!skb) {
 		DEBUG_PRINT();
@@ -208,7 +214,8 @@ static void write_bulk_callback(struct urb *urb)
 	}
 
 	netif_trans_update(deca->netdev);
-	if (--deca->tx_queue_cnt == (TX_QUEUE_LIMIT - 1) && netif_queue_stopped(deca->netdev)) {
+	if (--deca->tx_queue_cnt == (TX_QUEUE_LIMIT - 1) &&
+			netif_queue_stopped(deca->netdev)) {
 		netif_wake_queue(deca->netdev);
 	}
 
@@ -259,7 +266,8 @@ static netdev_tx_t deca_ethintf_start_xmit(struct sk_buff *skb,
 	usb_fill_bulk_urb(urb, dev->usbdev, usb_sndbulkpipe(dev->usbdev, 3),
 			  skb->data, count, write_bulk_callback, skb);
 
-	if ((res = usb_submit_urb(urb, GFP_ATOMIC))) {
+	res = usb_submit_urb(urb, GFP_ATOMIC);
+	if (res) {
 		/* Can we get/handle EPIPE here? */
 		if (res == -ENODEV) {
 			netif_device_detach(netdev);
@@ -301,7 +309,8 @@ static int deca_ethintf_open(struct net_device *netdev)
 #if 0
 	usb_fill_bulk_urb(dev->intr_urb, dev->usbdev, usb_rcvbulkpipe(dev->usbdev, 1),
 		      dev->intr_buff, INTBUFSIZE, read_intr_callback, dev);
-	if ((res = usb_submit_urb(dev->intr_urb, GFP_KERNEL))) {
+	res = usb_submit_urb(dev->intr_urb, GFP_KERNEL);
+	if (res) {
 		if (res == -ENODEV)
 			netif_device_detach(dev->netdev);
 		dev_warn(&netdev->dev, "intr_urb submit failed: %d\n", res);
@@ -322,6 +331,7 @@ static int deca_ethintf_open(struct net_device *netdev)
 static int deca_ethintf_close(struct net_device *netdev)
 {
 	struct deca_ethintf *deca = netdev_priv(netdev);
+
 	netif_stop_queue(netdev);
 	unlink_urb(deca);
 	return 0;
@@ -386,12 +396,12 @@ static int deca_ethintf_probe(struct usb_interface *intf,
 	struct deca_ethintf *deca;
 	struct usb_device *usbdev = interface_to_usbdev(intf);
 
-	printk(KERN_INFO "%s():%d\n", __FUNCTION__, __LINE__);
+	printk(KERN_INFO "%s():%d\n", __func__, __LINE__);
 
 	netdev = alloc_etherdev(sizeof(struct deca_ethintf));
 	if (!netdev) {
 		printk(KERN_ERR "%s():%d, alloc_etherdev() failed!",
-			__FUNCTION__, __LINE__);
+			__func__, __LINE__);
 		return -ENOMEM;
 	}
 	deca = netdev_priv(netdev);
@@ -433,6 +443,7 @@ static int deca_ethintf_probe(struct usb_interface *intf,
 static void deca_ethintf_disconnect(struct usb_interface *intf)
 {
 	struct deca_ethintf *deca = usb_get_intfdata(intf);
+
 	DEBUG_PRINT();
 	usb_set_intfdata(intf, NULL);
 	if (deca) {
