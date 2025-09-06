@@ -1,7 +1,8 @@
 /*
- * Copyright (C) 2022 Konrad Gotfryd
+ * Copyright (C) 2025 Konrad Gotfryd
  *
- * Basing on rtl8150.c
+ * Basing on rtl8150.c.
+ * In the end this driver will be replaced with usbnet, but not yet
  *
  */
 
@@ -13,7 +14,7 @@
 #include <linux/usb.h>
 
 static const char driver_name[] = "deca_eth_interface";
-
+static const char description[] = "v0.0.1";
 static const struct usb_device_id deca_ethintf_table[] = {
 	{USB_DEVICE(0x1209, 0x4711)},
 	{}
@@ -337,7 +338,7 @@ static int deca_ethintf_close(struct net_device *netdev)
 	return 0;
 }
 
-static void deca_ethintf_set_multicast(struct net_device *netdev)
+static void deca_ethintf_set_rx_mode(struct net_device *netdev)
 {
 }
 
@@ -346,15 +347,19 @@ static const struct net_device_ops deca_ethintf_netdev_ops = {
 	.ndo_stop = deca_ethintf_close,
 	.ndo_start_xmit = deca_ethintf_start_xmit,
 	.ndo_tx_timeout = deca_ethintf_tx_timeout,
-	.ndo_set_rx_mode = deca_ethintf_set_multicast,
+	.ndo_set_rx_mode = deca_ethintf_set_rx_mode,
 	.ndo_set_mac_address = eth_mac_addr,
 	.ndo_validate_addr = eth_validate_addr,
 };
 
-
 static void deca_ethintf_get_drvinfo(struct net_device *netdev,
 				    struct ethtool_drvinfo *info)
 {
+	struct deca_ethintf *dev = netdev_priv(netdev);
+
+	strscpy(info->driver, driver_name, sizeof(info->driver));
+	strscpy(info->fw_version, description, sizeof(info->fw_version));
+	usb_make_path(dev->usbdev, info->bus_info, sizeof info->bus_info);
 }
 
 static int deca_ethintf_get_link_ksettings(struct net_device *netdev,
