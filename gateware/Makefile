@@ -23,11 +23,6 @@ led_multiplexer-bench:
 		time python3 led_multiplexer-bench.py
 	gtkwave ./led_multiplexer.vcd
 
-uart_transmitter-bench:
-	. venv/bin/activate && \
-		time python3 uart_transmitter-bench.py
-	gtkwave ./uart_transmitter.vcd
-
 memory-bench:
 	. venv/bin/activate && \
 		time python3 memory-bench.py

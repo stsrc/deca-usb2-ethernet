@@ -9,7 +9,6 @@ from amaranth import *
 from amaranth.lib.fifo import *
 from simple_ports_to_wb import SimplePortsToWb
 from amlib.stream  import StreamInterface
-from uart_transmitter import UARTTransmitter
 
 __all__ = ["InjectData"]
 
@@ -61,7 +60,6 @@ class InjectData(Elaboratable):
         self.test_cnt_const = Signal(12)
 
         self.start_usb = Signal()
-        self.uart = UARTTransmitter()
 
         self.debug_received = Signal(8, reset = 0)
 
@@ -83,7 +81,6 @@ class InjectData(Elaboratable):
     def elaborate(self, platform):
         m = Module()
         m.submodules.simple_ports_to_wb = self.simple_ports_to_wb
-        m.submodules.uart = uart = self.uart
 
         m.d.sync += self.usb_out_fifo_w_en.eq(0)
         m.d.sync += self.usb_out_fifo_size_w_en.eq(0)
@@ -111,8 +108,6 @@ class InjectData(Elaboratable):
         debug_counter = Signal(16, reset = 0)
         
         m.d.sync += self.test_cnt_const.eq(2044)
-
-        m.d.sync += uart.send.eq(0)
 
         m.d.comb += self.simple_ports_to_wb.wr_strb_in.eq(0)
         m.d.comb += self.simple_ports_to_wb.rd_strb_in.eq(0)
