@@ -38,6 +38,11 @@ sptw_memory-bench:
 		time python3 sptw_memory-bench.py
 	gtkwave ./sptw_memory.vcd
 
+requesthandlers-bench:
+	. venv/bin/activate && \
+		time python3 requesthandlers-bench.py
+	gtkwave ./requesthandlers.vcd
+
 load:
 	quartus_pgm -m jtag -c "Arrow MAX 10 DECA" -o 'p;build/top.sof@1'
 
