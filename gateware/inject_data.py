@@ -65,6 +65,14 @@ class InjectData(Elaboratable):
 
         self.irq_state = Signal(32)
         self.new_irq = Signal()
+
+        self.control_op = Signal()
+        self.control_op_finish = Signal()
+        self.control_rd_wr = Signal()
+        self.control_data_in = Signal(32)
+        self.control_data_out = Signal(32, reset = 0)
+        self.control_reg = Signal(8)
+
     def get_bus(self):
         return self.simple_ports_to_wb.bus
 
@@ -119,8 +127,8 @@ class InjectData(Elaboratable):
             m.d.sync += wr_tmp.eq(self.tail - self.head)
         with m.Else():
             m.d.sync += wr_tmp.eq(self.head - self.tail)
-       
-#        m.d.sync += self.leds.eq((rd_tmp << 4) | wr_tmp)
+
+        m.d.sync += self.control_op_finish.eq(0)
 
         with m.FSM(reset="RESET"):
             with m.State("RESET"):
@@ -210,13 +218,36 @@ class InjectData(Elaboratable):
                             (((self.head + 1) % 16) != self.tail)): 
                     m.d.sync += tx_pkt_len.eq(self.usb_in_fifo_size_r_data)
                     m.d.sync += tx_pkt_len_test.eq(self.usb_in_fifo_r_data)
-                    with m.If(self.usb_in_fifo_size_r_data != self.usb_in_fifo_r_data):
-                        m.d.sync += self.leds.eq(0b11001100)
+#                    with m.If(self.usb_in_fifo_size_r_data != self.usb_in_fifo_r_data):
+#                        m.d.sync += self.leds.eq(0b11001100)
                     m.d.sync += tx_counter.eq(0)
                     m.d.comb += self.usb_in_fifo_size_r_en.eq(1)
                     m.d.comb += self.usb_in_fifo_r_en.eq(1)
                     m.next = "WRITE_DATA_PREPARE"
-           
+                with m.Elif(self.control_op & ~self.control_op_finish):
+                    with m.If(self.control_rd_wr == 1):
+                        m.next = "WRITE_REG"
+                        m.d.sync += self.leds.eq(0b01000010)
+                    with m.Else():
+                        m.next = "READ_REG"
+                        m.d.sync += self.leds.eq(0b10000001)
+          
+            with m.State("WRITE_REG"):
+               self.simple_ports_write(self.control_data_in, self.control_reg >> 2, "REG_END", m)
+               m.d.sync += self.leds.eq(0b11001100)
+
+            with m.State("READ_REG"):
+                m.d.comb += self.simple_ports_to_wb.rd_strb_in.eq(1)
+                m.d.comb += self.simple_ports_to_wb.address_in.eq(self.control_reg >> 2)
+                with m.If(self.simple_ports_to_wb.op_rdy_out):
+                    m.d.comb += self.simple_ports_to_wb.rd_strb_in.eq(0)
+                    m.d.sync += self.control_data_out.eq(self.simple_ports_to_wb.rd_data_out)
+                    m.next = "REG_END"
+
+            with m.State("REG_END"):
+                m.d.sync += self.control_op_finish.eq(1)
+                m.next = "IDLE"
+        
             with m.State("CLEAR_TX_DESC"):
                 m.d.comb += self.simple_ports_to_wb.rd_strb_in.eq(1)
                 m.d.comb += self.simple_ports_to_wb.address_in.eq((0x400 + self.tail * 8) >> 2)
@@ -335,6 +366,5 @@ class InjectData(Elaboratable):
                 m.d.sync += send_packet.eq(1)
             with m.If(self.irq_state & 0b00010000):
                 m.d.sync += self.busy_counter.eq(self.busy_counter + 1)
-
 
         return m

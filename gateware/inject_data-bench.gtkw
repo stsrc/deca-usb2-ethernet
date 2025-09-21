@@ -1,22 +1,31 @@
 [*]
 [*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
-[*] Thu Nov 10 15:12:21 2022
+[*] Sat Sep 13 20:09:58 2025
 [*]
 [dumpfile] "/home/kgotfryd/programming/workspace/deca-usb2-ethernet/gateware/inject_data.vcd"
-[dumpfile_mtime] "Thu Nov 10 15:10:52 2022"
-[dumpfile_size] 1169
+[dumpfile_mtime] "Sat Sep 13 20:09:36 2025"
+[dumpfile_size] 25974
 [savefile] "/home/kgotfryd/programming/workspace/deca-usb2-ethernet/gateware/inject_data-bench.gtkw"
 [timestart] 0
-[size] 1000 600
-[pos] -1 -1
+[size] 1872 1001
+[pos] -27 -24
 *-14.400000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] bench.
 [treeopen] bench.top.
 [sst_width] 297
 [signals_width] 213
 [sst_expanded] 1
-[sst_vpaned_height] 158
-@29
+[sst_vpaned_height] 299
+@28
 bench.top.fsm_state
+@29
+bench.top.clk
+@23
+bench.top.control_data_in[31:0]
+bench.top.control_data_out[31:0]
+@29
+bench.top.control_op
+bench.top.control_op_finish
+bench.top.control_rd_wr
 [pattern_trace] 1
 [pattern_trace] 0

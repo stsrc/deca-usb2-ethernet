@@ -13,6 +13,30 @@ if __name__ == "__main__":
         yield Tick()
         yield dut.int.eq(0)
 
+        for _ in range(25):
+            yield Tick()
+
+        yield dut.control_op.eq(1)
+        yield dut.control_rd_wr.eq(0)
+        yield dut.control_reg.eq(0x10)
+
+        for _ in range(5):
+            yield Tick()
+
+        yield dut.control_op.eq(0)
+
+        yield Tick()
+        yield dut.control_op.eq(1)
+        yield dut.control_rd_wr.eq(1)
+        yield dut.control_reg.eq(0x14)
+        yield dut.control_data_in.eq(0xaabbccdd)
+
+        for _ in range(5):
+            yield Tick()
+
+        yield dut.control_op.eq(0)
+
+
         for _ in range(200):
             yield Tick()
 

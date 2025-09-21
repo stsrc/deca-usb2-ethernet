@@ -10,183 +10,220 @@ class VendorRequestHandlers(USBRequestHandler):
     def __init__(self):
         super().__init__()
         self.leds = Signal(8, reset = 0)
-        self.count = Signal(2, reset = 0)
+        self.count = Signal(2)
 
         self.reg_addr = Signal(8, reset = 0)
-        self.data_in = Signal(32, reset = 0)
+        self.data_in = Signal(32)
         self.data_out = Signal(32, reset = 0)
         self.op = Signal(reset = 0)
-        self.op_finish = Signal(reset = 0)
-        self.cnt = Signal(2, reset = 0)
-        self.transmitter = StreamSerializer(data_length=4, stream_type=USBInStreamInterface, max_length_width=4)
+        self.op_finish = Signal()
+        self.rd_wr = Signal(reset = 0)
 
     def elaborate(self, platform):
         m = Module()
 
-        m.submodules.transmitter = transmitter = self.transmitter
+        m.submodules.transmitter = transmitter = \
+            StreamSerializer(data_length=4, domain="usb", stream_type=USBInStreamInterface, max_length_width=4)
 
         interface = self.interface
         setup = self.interface.setup
+        cnt = Signal(6, reset = 0)
+        dbg_cnt = Signal(6, reset = 0)
 
-        m.d.comb += transmitter.stream.attach(self.interface.tx)
-        m.d.comb += [
-                Cat(transmitter.data).eq(self.data_in),
-                transmitter.max_length.eq(setup.length)
-        ]
+        dummy_tx = USBInStreamInterface()
+
         m.d.comb += transmitter.start.eq(0)
+        m.d.comb += interface.handshakes_out.ack.eq(0)
+        m.d.comb += interface.claim.eq(0)
+        m.d.comb += self.interface.tx.valid.eq(0)
+        m.d.comb += self.interface.tx.last.eq(0)
 
-        m.d.sync += self.leds.eq(self.interface.tx.payload)
+        m.d.comb += [
+            Cat(transmitter.data).eq(self.data_in),
+            transmitter.max_length.eq(4)
+        ]
 
-        with m.FSM(reset="RST"):
-            with m.State("RST"):
-                m.next = "IDLE"
-            with m.State("IDLE"):
-                m.d.sync += self.op.eq(0)
-                with m.If(setup.type == USBRequestType.VENDOR):
-                    m.d.sync += self.reg_addr.eq(setup.request)
-                    with m.If(setup.is_in_request):
-                        m.d.sync += self.op.eq(1)
-                        m.next = "READ_REG"
-                    with m.Else():
-                        with m.If(interface.rx.next):
-                            m.d.sync += self.data_out.eq(interface.rx.payload << 
-                                                        (((3 - self.cnt) * 8).as_unsigned()) |
-                                                        self.data_out)
-                            m.d.sync += self.cnt.eq(self.cnt + 1)
-                            with m.If(self.cnt == 3):
-                                m.next = "WRITE_REG"
+        m.d.comb += transmitter.stream.attach(dummy_tx)
 
-            with m.State("READ_REG"):
-                m.d.sync += self.op.eq(1)
+        with m.If(setup.type == USBRequestType.VENDOR):
+            m.d.sync += self.reg_addr.eq(setup.request)
+            m.d.comb += interface.claim.eq(1)
+            with m.If(setup.is_in_request): #REG RD
+
+                m.d.comb += transmitter.stream.attach(self.interface.tx)
+
+                with m.If(interface.data_requested):
+                    m.d.sync += self.op.eq(1)
+                    m.d.sync += self.rd_wr.eq(0)
                 with m.If(self.op_finish):
                     m.d.sync += self.op.eq(0)
-                    with m.If(interface.data_requested):
-                        m.d.comb += transmitter.start.eq(1)
-                        m.next = "SEND_REG"
-                    with m.Else():
-                        with m.If(interface.status_requested):
-                            m.d.comb += interface.handshakes_out.ack.eq(1)
-                        m.next = "IDLE"
+                    m.d.comb += transmitter.start.eq(1)
+                with m.If(interface.status_requested):
+                    m.d.comb += interface.handshakes_out.ack.eq(1)
 
-            with m.State("SEND_REG"):
-                with m.If(transmitter.done):
-                    m.next = "IDLE"
-                    with m.If(interface.status_requested):
-                        m.d.comb += interface.handshakes_out.ack.eq(1)
+#                m.d.sync += self.leds.eq(self.leds + 2)
 
-            with m.State("WRITE_REG"):
-                m.d.sync += self.op.eq(1)
-                with m.If(self.op_finish):
+            with m.Else():                          #REG WR
+                with m.If(interface.rx.next):
+                    m.d.sync += self.data_out.eq((interface.rx.payload <<
+                                                 (((3 - cnt) * 8).as_unsigned())) |
+                                                 self.data_out)
+                    with m.If(interface.rx.payload == 0x0a):
+                        m.d.sync += dbg_cnt.eq(dbg_cnt + 1)
+                    m.d.sync += cnt.eq(cnt + 1)
+
+                    m.d.sync += self.leds.eq(((cnt + 1) << 4) | (dbg_cnt + 1))
+
+                with m.If(cnt >= 3):
+                    m.d.sync += self.op.eq(1)
+                    m.d.sync += self.rd_wr.eq(1)
+                with m.If((cnt > 3) & self.op_finish):
                     m.d.sync += self.op.eq(0)
-                    with m.If(interface.rx_ready_for_response): # read how does it work
-                        m.d.comb += interface.handshakes_out.ack.eq(1)
-                    with m.If(interface.status_requested):
-                        m.d.comb += self.send_zlp()
-                    m.next = "IDLE"
-                    m.d.sync += self.cnt.eq(0)
                     m.d.sync += self.data_out.eq(0)
+                    m.d.sync += cnt.eq(0)
+                    m.d.sync += dbg_cnt.eq(0)
+
+            # Always ACK the data out...
+                with m.If((~interface.rx.next) & interface.rx_ready_for_response):
+                    m.d.comb += interface.handshakes_out.ack.eq(1)
+
+            # ... and accept whatever the request was.
+                with m.If((~interface.rx.next) & interface.status_requested):
+                    m.d.comb += self.send_zlp()
+
+#                    m.d.sync += self.leds.eq(self.leds + 2)
 
         return m
 
-class UAC2RequestHandlers(USBRequestHandler):
-    """ request handlers to implement UAC2 functionality. """
-    def __init__(self):
-        super().__init__()
 
-        self.output_interface_altsetting_nr = Signal(3)
-        self.input_interface_altsetting_nr  = Signal(3)
-        self.interface_settings_changed     = Signal()
 
-    def elaborate(self, platform):
-        m = Module()
-
-        interface         = self.interface
-        setup             = self.interface.setup
-
-        m.submodules.transmitter = transmitter = \
-            StreamSerializer(data_length=14, domain="usb", stream_type=USBInStreamInterface, max_length_width=14)
-
-        m.d.usb += self.interface_settings_changed.eq(0)
-
-        #
-        # Class request handlers.
-        #
-        with m.If(setup.type == USBRequestType.STANDARD):
-            with m.If((setup.recipient == USBRequestRecipient.INTERFACE) &
-                      (setup.request == USBStandardRequests.SET_INTERFACE)):
-
-                interface_nr   = setup.index
-                alt_setting_nr = setup.value
-
-                m.d.usb += [
-                    self.output_interface_altsetting_nr.eq(0),
-                    self.input_interface_altsetting_nr.eq(0),
-                    self.interface_settings_changed.eq(1),
-                ]
-
-                with m.Switch(interface_nr):
-                    with m.Case(1):
-                        m.d.usb += self.output_interface_altsetting_nr.eq(alt_setting_nr)
-                    with m.Case(2):
-                        m.d.usb += self.input_interface_altsetting_nr.eq(alt_setting_nr)
-
-                # Always ACK the data out...
-                with m.If(interface.rx_ready_for_response):
-                    m.d.comb += interface.handshakes_out.ack.eq(1)
-
-                # ... and accept whatever the request was.
-                with m.If(interface.status_requested):
-                    m.d.comb += self.send_zlp()
-
-        request_clock_freq = (setup.value == 0x100) & (setup.index == 0x0100)
-        with m.Elif(setup.type == USBRequestType.CLASS):
-            with m.Switch(setup.request):
-                with m.Case(AudioClassSpecificRequestCodes.RANGE):
-                    m.d.comb += transmitter.stream.attach(self.interface.tx)
-
-                    with m.If(request_clock_freq):
-                        m.d.comb += [
-                            Cat(transmitter.data).eq(
-                                Cat(Const(0x1, 16), # no triples
-                                    Const(48000, 32), # MIN
-                                    Const(48000, 32), # MAX
-                                    Const(0, 32))),   # RES
-                            transmitter.max_length.eq(setup.length)
-                        ]
-                    with m.Else():
-                        m.d.comb += interface.handshakes_out.stall.eq(1)
-
-                    # ... trigger it to respond when data's requested...
-                    with m.If(interface.data_requested):
-                        m.d.comb += transmitter.start.eq(1)
-
-                    # ... and ACK our status stage.
-                    with m.If(interface.status_requested):
-                        m.d.comb += interface.handshakes_out.ack.eq(1)
-
-                with m.Case(AudioClassSpecificRequestCodes.CUR):
-                    m.d.comb += transmitter.stream.attach(self.interface.tx)
-                    with m.If(request_clock_freq & (setup.length == 4)):
-                        m.d.comb += [
-                            Cat(transmitter.data[0:4]).eq(Const(48000, 32)),
-                            transmitter.max_length.eq(4)
-                        ]
-                    with m.Else():
-                        m.d.comb += interface.handshakes_out.stall.eq(1)
-
-                    # ... trigger it to respond when data's requested...
-                    with m.If(interface.data_requested):
-                        m.d.comb += transmitter.start.eq(1)
-
-                    # ... and ACK our status stage.
-                    with m.If(interface.status_requested):
-                        m.d.comb += interface.handshakes_out.ack.eq(1)
-
-                with m.Case():
-                    #
-                    # Stall unhandled requests.
-                    #
-                    with m.If(interface.status_requested | interface.data_requested):
-                        m.d.comb += interface.handshakes_out.stall.eq(1)
-
-                return m
+#class VendorRequestHandlers(USBRequestHandler):
+#    def __init__(self, simulation = False):
+#        super().__init__()
+#        self.leds = Signal(8, reset = 0)
+#        self.count = Signal(2, reset = 0)
+#
+#        self.reg_addr = Signal(8, reset = 0)
+#        self.data_in = Signal(32, reset = 0)
+#        self.data_out = Signal(32, reset = 0)
+#        self.op = Signal(reset = 0)
+#        self.op_finish = Signal(reset = 0)
+#        self.rd_wr = Signal(reset = 0)
+#        self.cnt = Signal(2, reset = 0)
+#        if not simulation:
+#            self.delay = Signal(25, reset = 0)
+#        else:
+#            self.delay = Signal(8, reset = 0)
+#        self.transmitter = StreamSerializer(data_length=4, domain="usb", stream_type=USBInStreamInterface, max_length_width=4)
+#
+#    def elaborate(self, platform):
+#        m = Module()
+#
+#        m.submodules.transmitter = transmitter = self.transmitter
+#
+#        interface = self.interface
+#        setup = self.interface.setup
+#
+#        m.d.comb += transmitter.start.eq(0)
+#        m.d.comb += interface.handshakes_out.ack.eq(0)
+#        m.d.comb += interface.handshakes_out.nak.eq(0)
+#
+#        m.d.comb += transmitter.stream.attach(self.interface.tx)
+#        m.d.comb += [
+#            Cat(transmitter.data).eq(self.data_in),
+#            transmitter.max_length.eq(setup.length)
+#        ]
+#
+#        m.d.comb += interface.claim.eq(0)
+#        data_requested = Signal(reset = 0)
+#        status_requested = Signal(reset = 0)
+#
+#        with m.If(setup.type == USBRequestType.VENDOR & setup.received):
+#            with m.If(setup.request == 0x05):
+#                m.d.comb += interface.claim.eq(1)
+#                with m.If(interface.status_requested):
+#                    m.d.comb += interface.handshakes_out.ack.eq(1)
+#
+#                with m.If(interface.data_requested):
+#                    m.d.usb += data_requested.eq(1)
+#
+#        
+#                with m.FSM(reset="IDLE"):
+#                    with m.State("IDLE"):
+#                        m.d.usb += self.op.eq(0)
+#                        m.d.usb += self.reg_addr.eq(setup.value)
+#                        with m.If(setup.is_in_request):
+#                            m.d.usb += self.rd_wr.eq(0)
+#                            m.next = "READ_REG"
+#                
+#                        with m.Else():
+#                            with m.If(interface.rx.next):
+#                                m.d.usb += self.data_out.eq(interface.rx.payload << 
+#                                                            (((3 - self.cnt) * 8).as_unsigned()) |
+#                                                            self.data_out)
+#                                m.d.usb += self.cnt.eq(self.cnt + 1)
+#                                with m.If(self.cnt == 3):
+#                                    m.next = "WRITE_REG"
+#        
+#                    with m.State("READ_REG"):
+#                        m.d.usb += self.op.eq(1)
+#                        with m.If(self.op_finish):
+#                            m.d.usb += self.op.eq(0)
+#                            m.next = "SEND_REG"
+#                            m.d.usb += self.delay.eq(1)
+#        
+#                    with m.State("SEND_REG"):
+#                        with m.If(data_requested):
+#                            m.d.comb += transmitter.start.eq(1)
+#                            m.d.usb += data_requested.eq(0)
+#                            m.d.usb += self.leds.eq(0b01010101)
+#        
+#                        m.d.comb += interface.claim.eq(1)
+#                        m.d.usb += self.delay.eq(self.delay + 1)
+#                        m.d.usb += self.leds.eq(0b11000000)
+#                        with m.If(transmitter.done):
+#                            with m.If(interface.handshakes_in.ack):
+#                                m.next = "END_END_SEND"
+#                            with m.Else():
+#                                m.next = "END_SEND"
+#                        with m.Elif(self.delay == 0):
+#                            m.next = "IDLE"
+#                            m.d.usb += self.leds.eq(0b00110000)
+#                            m.d.comb += interface.handshakes_out.nak.eq(1)
+#        
+#                    with m.State("END_SEND"):
+#                        m.d.comb += interface.claim.eq(1)
+#                        with m.If(interface.handshakes_in.ack):
+#                            m.next = "END_END_SEND"
+#                    
+#                    with m.State("END_END_SEND"):
+#                        m.d.comb += interface.claim.eq(1)
+#                        with m.If(interface.status_requested):
+#                            m.d.comb += interface.handshakes_out.ack.eq(1)
+#                            m.next = "IDLE"
+#        
+#                    with m.State("WRITE_REG"):
+#                        m.d.comb += interface.claim.eq(1)
+#                        m.d.usb += self.op.eq(1)
+#                        m.d.usb += self.rd_wr.eq(1)
+#                        with m.If(self.op_finish):
+#                            m.d.usb += self.op.eq(0)
+#                            m.d.usb += self.cnt.eq(0)
+#                            m.d.usb += self.data_out.eq(0)
+#                            m.d.usb += self.delay.eq(1)
+#                            m.next = "WRITE_END"
+#        
+#                    with m.State("WRITE_END"):
+#                        m.d.comb += interface.claim.eq(1)
+#                        m.d.usb += self.delay.eq(self.delay + 1)
+#                        with m.If(interface.rx_ready_for_response): # read how does it work
+#                            m.d.comb += interface.handshakes_out.ack.eq(1)
+#                            m.next = "IDLE"
+#                            with m.If(status_requested):
+#                                m.d.usb += status_requested.eq(0)
+#                                m.d.comb += self.send_zlp()
+#                        with m.Elif(self.delay == 0):
+#                            m.next = "IDLE"
+#                            m.d.comb += interface.handshakes_out.nak.eq(1)
+#
+#        return m

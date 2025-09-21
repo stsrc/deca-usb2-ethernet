@@ -1,0 +1,38 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Fri Sep 12 15:14:45 2025
+[*]
+[dumpfile] "/home/kgotfryd/programming/workspace/deca-usb2-ethernet/gateware/requesthandlers.vcd"
+[dumpfile_mtime] "Fri Sep 12 15:05:58 2025"
+[dumpfile_size] 2344
+[savefile] "/home/kgotfryd/programming/workspace/deca-usb2-ethernet/gateware/requesthandlers-bench.gtkw"
+[timestart] 0
+[size] 1872 1001
+[pos] -27 -24
+*-15.300000 1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] bench.
+[treeopen] bench.top.
+[sst_width] 297
+[signals_width] 303
+[sst_expanded] 1
+[sst_vpaned_height] 298
+@28
+bench.top.clk
+bench.top.op
+bench.top.op_finish
+@22
+bench.top.payload$23[7:0]
+bench.top.payload$24[7:0]
+bench.top.payload[7:0]
+@28
+bench.top.valid
+bench.top.valid$18
+@22
+bench.top.reg_addr[7:0]
+@28
+bench.top.is_in_request
+bench.top.type[1:0]
+@29
+bench.top.fsm_state
+[pattern_trace] 1
+[pattern_trace] 0

@@ -149,12 +149,6 @@ class USB2EthernetInterface(Elaboratable):
                 out_dbg_fifo_size.w_data.eq(eth_interface.inject_data.usb_out_dbg_fifo_size_w_data),
             ]
 
-            uart_tx = platform.request("uart", 0).tx
-
-            m.d.comb += [
-                uart_tx.o.eq(eth_interface.inject_data.uart.tx)
-            ]
-
         rst_button = platform.request("button", 0)
         act_button = platform.request("button", 1)
 
@@ -185,15 +179,6 @@ class USB2EthernetInterface(Elaboratable):
 
         leds = Cat([platform.request("led", i).o for i in range(8)])
 
-        m.d.comb += [
-                led_multiplexer.inputs[0].eq(eth_interface.usb_in_to_fifo.leds),
-                led_multiplexer.inputs[1].eq(inject_data_leds_sync),
-                led_multiplexer.inputs[2].eq(usb_out_from_fifo.leds),
-                led_multiplexer.inputs[3].eq(inject_data_leds__sync),
-                led_multiplexer.do_switch.eq(start_usb),
-                leds.eq(led_multiplexer.output),
-        ]
-
         # Generate our domain clocks/resets.
         m.submodules.car = platform.clock_domain_generator()
 
@@ -208,8 +193,26 @@ class USB2EthernetInterface(Elaboratable):
                           & (setup.request == USBStandardRequests.SET_INTERFACE)
         ])
 
-        vendor_request_handler = VendorRequestHandlers()
+        vendor_request_handler =  VendorRequestHandlers()
         control_ep.add_request_handler(vendor_request_handler)
+
+        m.d.comb += [
+                led_multiplexer.inputs[0].eq(vendor_request_handler.leds),
+                led_multiplexer.inputs[1].eq(inject_data_leds_sync),
+                led_multiplexer.inputs[2].eq(usb_out_from_fifo.leds),
+                led_multiplexer.inputs[3].eq(inject_data_leds__sync),
+                led_multiplexer.do_switch.eq(start_usb),
+                leds.eq(led_multiplexer.output),
+        ]
+
+        m.d.comb += [
+            eth_interface.inject_data.control_op.eq(vendor_request_handler.op),
+            eth_interface.inject_data.control_data_in.eq(vendor_request_handler.data_out),
+            eth_interface.inject_data.control_rd_wr.eq(vendor_request_handler.rd_wr),
+            eth_interface.inject_data.control_reg.eq(vendor_request_handler.reg_addr),
+            vendor_request_handler.data_in.eq(eth_interface.inject_data.control_data_out),
+            vendor_request_handler.op_finish.eq(eth_interface.inject_data.control_op_finish)
+        ]
 
         # Attach class-request handlers that stall any reserved requests,
         # as we don't have or need any.

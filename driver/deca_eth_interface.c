@@ -48,6 +48,46 @@ struct deca_skb_data {
 #define INTBUFSIZE 4
 #define DECA_MTU 1536
 
+#define CTRL_T_TIMEOUT 5000
+
+static int get_register(struct deca_ethintf *dev,
+			 u8 reg,
+                         u32 *data)
+{
+	int ret;
+	int indx = 0;
+	int size = sizeof(u32);
+	u32 *buf = kmalloc(size, GFP_NOIO);
+	if (!buf) {
+		return -1;
+	}
+	int pipe = usb_rcvctrlpipe(dev->usbdev, 0);
+        ret = usb_control_msg(dev->usbdev, usb_rcvctrlpipe(dev->usbdev, 0),
+                              reg, DECA_REQT_READ,
+                              reg, 0, buf, size, CTRL_T_TIMEOUT);
+
+	*data = *buf;
+	kfree(buf);
+        return ret;
+}
+
+static int set_register(struct deca_ethintf *dev,
+                        u8 reg,
+                        u32 data)
+{
+	int ret;
+	u32 *buf = kmalloc(sizeof(data), GFP_NOIO);
+	if (!buf) {
+		return -1;
+	}
+	*buf = data;
+	ret = usb_control_msg(dev->usbdev, usb_sndctrlpipe(dev->usbdev, 0),
+                                  reg, DECA_REQT_WRITE,
+                                   reg, 0, buf, sizeof(data), CTRL_T_TIMEOUT);
+	kfree(buf);
+        return ret;
+}
+
 static int alloc_urb(struct deca_ethintf *dev)
 {
 	dev->intr_urb = usb_alloc_urb(0, GFP_KERNEL);
@@ -400,6 +440,8 @@ static int deca_ethintf_probe(struct usb_interface *intf,
 	struct net_device *netdev;
 	struct deca_ethintf *deca;
 	struct usb_device *usbdev = interface_to_usbdev(intf);
+	u32 mac;
+	int ret;
 
 	printk(KERN_INFO "%s():%d\n", __func__, __LINE__);
 
@@ -412,6 +454,31 @@ static int deca_ethintf_probe(struct usb_interface *intf,
 	deca = netdev_priv(netdev);
 
 	deca->usbdev = usbdev;
+
+	mac = 0;
+	if((ret = get_register(deca, 0x00, &mac))) {
+		pr_info("get_register ret = %d\n", ret);
+	}
+	pr_info("---> MAC is %08x\n", mac);
+
+	mac = 0x12345678;
+	if ((ret = set_register(deca, 0x34, mac))) {
+		pr_info("set_Register ret = %d\n", ret);
+	}
+	mac = 0;
+	if((ret = get_register(deca, 0x44, &mac))) {
+		pr_info("get_register ret = %d\n", ret);
+	}
+	pr_info("---> MAC is %08x\n", mac);
+	if((ret = get_register(deca, 0x40, &mac))) {
+		pr_info("get_register ret = %d\n", ret);
+	}
+	pr_info("---> MAC is %08x\n", mac);
+	if((ret = get_register(deca, 0x34, &mac))) {
+		pr_info("get_register ret = %d\n", ret);
+	}
+	pr_info("---> MAC is %08x\n", mac);
+
 	deca->netdev = netdev;
 	deca->intr_interval = 100; // 100ms
 	netdev->netdev_ops = &deca_ethintf_netdev_ops;
@@ -442,6 +509,7 @@ static int deca_ethintf_probe(struct usb_interface *intf,
 		free_netdev(netdev);
 		return -EIO;
 	}
+
 	return 0;
 }
 

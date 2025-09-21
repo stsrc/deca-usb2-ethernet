@@ -4,7 +4,7 @@ from usb_protocol.types import USBRequestType
 from amaranth.sim import Simulator, Tick
 
 if __name__ == "__main__":
-    dut = VendorRequestHandlers()
+    dut = VendorRequestHandlers(simulation = True)
 
     def process():
         yield dut.op_finish.eq(0)
@@ -45,7 +45,18 @@ if __name__ == "__main__":
         yield dut.op_finish.eq(1)
         yield Tick()
         yield dut.op_finish.eq(0)
-        for i in range(16):
+        yield dut.interface.rx_ready_for_response.eq(1)
+        yield Tick()
+        yield dut.interface.rx_ready_for_response.eq(0)
+        yield dut.interface.setup.is_in_request.eq(1)
+        for i in range(5):
+            yield Tick()
+        yield dut.data_in.eq(0xeeff0011)
+        yield dut.op_finish.eq(1)
+        yield Tick()
+        yield dut.op_finish.eq(0)
+        yield dut.interface.setup.is_in_request.eq(0)
+        for i in range(512):
             yield Tick()
 
     sim = Simulator(dut)
