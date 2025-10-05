@@ -55,18 +55,16 @@ static int get_register(struct deca_ethintf *dev,
                          u32 *data)
 {
 	int ret;
-	int indx = 0;
 	int size = sizeof(u32);
 	u32 *buf = kmalloc(size, GFP_NOIO);
 	if (!buf) {
 		return -1;
 	}
-	int pipe = usb_rcvctrlpipe(dev->usbdev, 0);
         ret = usb_control_msg(dev->usbdev, usb_rcvctrlpipe(dev->usbdev, 0),
                               reg, DECA_REQT_READ,
                               reg, 0, buf, size, CTRL_T_TIMEOUT);
 
-	*data = *buf;
+	*data = le32_to_cpu(*buf);
 	kfree(buf);
         return ret;
 }
@@ -80,12 +78,119 @@ static int set_register(struct deca_ethintf *dev,
 	if (!buf) {
 		return -1;
 	}
-	*buf = data;
+	*buf = cpu_to_le32(data);
 	ret = usb_control_msg(dev->usbdev, usb_sndctrlpipe(dev->usbdev, 0),
                                   reg, DECA_REQT_WRITE,
                                    reg, 0, buf, sizeof(data), CTRL_T_TIMEOUT);
 	kfree(buf);
         return ret;
+}
+
+#define MII_COMMAND_REG 0x2C
+#define MII_COMMAND_WCTRLDATA (1 << 2)
+#define MII_COMMAND_RSTAT     (1 << 1)
+#define MII_COMMAND_SCANSTAT  (1 << 0)
+#define MII_COMMAND_MASK 0b111
+#define MII_ADDRESS_REG 0x30
+#define MII_ADDRESS_REG_A_MOV 8
+#define MII_TX_DATA_REG 0x34
+#define MII_RX_DATA_REG 0x38
+#define MII_STATUS_REG 0x3c
+#define MII_STATUS_BUSY (1 << 1)
+#define MII_MODER_REG 0x28
+#define MII_MODER_CLKDIV 24
+#define MAX_REP 50
+
+static int init_mii(struct deca_ethintf *dev) {
+	u32 tmp = 0;
+	int ret = set_register(dev, MII_MODER_REG, MII_MODER_CLKDIV);
+	if (ret <= 0) {
+		pr_info("%s():%d - %d\n", __func__, __LINE__, ret);
+		return -1;
+	}
+	ret = get_register(dev, MII_MODER_REG, &tmp);
+	if (ret <= 0) {
+		pr_info("%s():%d - %d\n", __func__, __LINE__, ret);
+		return -1;
+	}
+	pr_info("---> %d\n", tmp);
+	return 0;
+}
+
+static int read_mii_word(struct deca_ethintf *dev, u8 phy, u8 index, u16 *regd) {
+	u32 read_data = 0;
+	int i = 0;
+
+	int ret = set_register(dev, MII_ADDRESS_REG, (index << MII_ADDRESS_REG_A_MOV) | (phy & 0xf));
+	if (ret <= 0) {
+		pr_info("%s():%d - %d\n", __func__, __LINE__, ret);
+		return -1;
+	}
+	ret = set_register(dev, MII_COMMAND_REG, MII_COMMAND_RSTAT);
+	if (ret <= 0) {
+		pr_info("%s():%d - %d\n", __func__, __LINE__, ret);
+		return -1;
+	}
+
+	for (i = 0; i < MAX_REP; i++) {
+		ret = get_register(dev, MII_STATUS_REG, &read_data);
+		if (ret <= 0) {
+			pr_info("%s():%d - %d\n", __func__, __LINE__, ret);
+			return -1;
+		}
+		if (!(read_data & MII_STATUS_BUSY)) {
+			break;
+		}
+	}
+	if (i == MAX_REP) {
+		pr_info("%s():%d\n", __func__, __LINE__);
+		return -1;
+	}
+
+	ret = get_register(dev, MII_RX_DATA_REG, &read_data);
+	if (ret <= 0) {
+		pr_info("%s():%d - %d\n", __func__, __LINE__, ret);
+		return -1;
+	}
+	*regd = read_data & 0xffff;
+	return 0;
+}
+
+static int write_mii_word(struct deca_ethintf *dev, u8 phy, u8 index, u16 *regd) {
+	u32 read_data = 0;
+	int i = 0;
+	int ret = set_register(dev, MII_ADDRESS_REG, (index << MII_ADDRESS_REG_A_MOV) | (phy & 0xf));
+	if (ret <= 0) {
+		pr_info("%s():%d - %d\n", __func__, __LINE__, ret);
+		return -1;
+	}
+	ret = set_register(dev, MII_TX_DATA_REG, *regd);
+	if (ret <= 0) {
+		pr_info("%s():%d - %d\n", __func__, __LINE__, ret);
+		return -1;
+	}
+
+	ret = set_register(dev, MII_COMMAND_REG, MII_COMMAND_WCTRLDATA);
+	if (ret <= 0) {
+		pr_info("%s():%d - %d\n", __func__, __LINE__, ret);
+		return -1;
+	}
+
+	for (i = 0; i < MAX_REP; i++) {
+		ret = get_register(dev, MII_STATUS_REG, &read_data);
+		if (ret <= 0) {
+			pr_info("%s():%d - %d\n", __func__, __LINE__, ret);
+			return -1;
+		}
+		if (!(read_data & MII_STATUS_BUSY)) {
+			break;
+		}
+	}
+	if (i == MAX_REP) {
+		pr_info("%s():%d\n", __func__, __LINE__);
+		return -1;
+	}
+	return 0;
 }
 
 static int alloc_urb(struct deca_ethintf *dev)
@@ -434,16 +539,16 @@ static void set_ethernet_addr(struct deca_ethintf *dev)
 	eth_hw_addr_set(dev->netdev, node_id);
 }
 
+
+
 static int deca_ethintf_probe(struct usb_interface *intf,
 			      const struct usb_device_id *id)
 {
 	struct net_device *netdev;
 	struct deca_ethintf *deca;
 	struct usb_device *usbdev = interface_to_usbdev(intf);
-	u32 mac;
 	int ret;
-
-	printk(KERN_INFO "%s():%d\n", __func__, __LINE__);
+	u16 reg;
 
 	netdev = alloc_etherdev(sizeof(struct deca_ethintf));
 	if (!netdev) {
@@ -454,31 +559,6 @@ static int deca_ethintf_probe(struct usb_interface *intf,
 	deca = netdev_priv(netdev);
 
 	deca->usbdev = usbdev;
-
-	mac = 0;
-	if((ret = get_register(deca, 0x00, &mac))) {
-		pr_info("get_register ret = %d\n", ret);
-	}
-	pr_info("---> MAC is %08x\n", mac);
-
-	mac = 0x12345678;
-	if ((ret = set_register(deca, 0x34, mac))) {
-		pr_info("set_Register ret = %d\n", ret);
-	}
-	mac = 0;
-	if((ret = get_register(deca, 0x44, &mac))) {
-		pr_info("get_register ret = %d\n", ret);
-	}
-	pr_info("---> MAC is %08x\n", mac);
-	if((ret = get_register(deca, 0x40, &mac))) {
-		pr_info("get_register ret = %d\n", ret);
-	}
-	pr_info("---> MAC is %08x\n", mac);
-	if((ret = get_register(deca, 0x34, &mac))) {
-		pr_info("get_register ret = %d\n", ret);
-	}
-	pr_info("---> MAC is %08x\n", mac);
-
 	deca->netdev = netdev;
 	deca->intr_interval = 100; // 100ms
 	netdev->netdev_ops = &deca_ethintf_netdev_ops;
@@ -509,7 +589,17 @@ static int deca_ethintf_probe(struct usb_interface *intf,
 		free_netdev(netdev);
 		return -EIO;
 	}
-
+	ret = init_mii(deca);
+	if (ret) {
+		DEBUG_PRINT();
+	}
+	ret = read_mii_word(deca, 0x01, 0, &reg);
+	pr_info("STATUS MII REG: %hu (%d)\n", reg, ret);
+#if 0
+	if (!ret) {
+		write_mii_word(deca, 0x01, 0, &reg);
+	}
+#endif
 	return 0;
 }
 

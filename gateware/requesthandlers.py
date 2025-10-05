@@ -66,7 +66,7 @@ class VendorRequestHandlers(USBRequestHandler):
             with m.Else():                          #REG WR
                 with m.If(interface.rx.next):
                     m.d.sync += self.data_out.eq((interface.rx.payload <<
-                                                 (((3 - cnt) * 8).as_unsigned())) |
+                                                 ((cnt * 8).as_unsigned())) |
                                                  self.data_out)
                     with m.If(interface.rx.payload == 0x0a):
                         m.d.sync += dbg_cnt.eq(dbg_cnt + 1)
