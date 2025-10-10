@@ -13,6 +13,7 @@ clean:
 
 load:
 	- sudo rmmod deca_eth_interface
+	- sudo modprobe mii
 	sudo insmod deca_eth_interface.ko
 
 endif

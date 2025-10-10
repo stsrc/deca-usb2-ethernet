@@ -21,6 +21,7 @@ static const struct usb_device_id deca_ethintf_table[] = {
 };
 
 MODULE_DEVICE_TABLE(usb, deca_ethintf_table);
+MODULE_SOFTDEP("pre: mii");
 
 #define TX_QUEUE_LIMIT 16
 
@@ -34,6 +35,8 @@ struct deca_ethintf {
 	u8 *intr_buff;
 	int intr_interval;
 	int tx_queue_cnt;
+	u8 mii_phy;
+	struct mii_if_info mii;
 };
 
 struct deca_skb_data {
@@ -101,21 +104,6 @@ static int set_register(struct deca_ethintf *dev,
 #define MII_MODER_CLKDIV 24
 #define MAX_REP 50
 
-static int init_mii(struct deca_ethintf *dev) {
-	u32 tmp = 0;
-	int ret = set_register(dev, MII_MODER_REG, MII_MODER_CLKDIV);
-	if (ret <= 0) {
-		pr_info("%s():%d - %d\n", __func__, __LINE__, ret);
-		return -1;
-	}
-	ret = get_register(dev, MII_MODER_REG, &tmp);
-	if (ret <= 0) {
-		pr_info("%s():%d - %d\n", __func__, __LINE__, ret);
-		return -1;
-	}
-	return 0;
-}
-
 static int read_mii_word(struct deca_ethintf *dev, u8 phy, u8 index, u16 *regd) {
 	u32 read_data = 0;
 	int i = 0;
@@ -155,6 +143,18 @@ static int read_mii_word(struct deca_ethintf *dev, u8 phy, u8 index, u16 *regd) 
 	return 0;
 }
 
+static int mdio_read(struct net_device *dev, int phy_id, int loc) {
+	struct deca_ethintf *deca = netdev_priv(dev);
+	int ret;
+	u16 res;
+
+	ret = read_mii_word(deca, phy_id, loc, &res);
+	if (ret < 0) {
+		return ret;
+	}
+	return (int)res;
+}
+
 static int write_mii_word(struct deca_ethintf *dev, u8 phy, u8 index, u16 *regd) {
 	u32 read_data = 0;
 	int i = 0;
@@ -191,6 +191,36 @@ static int write_mii_word(struct deca_ethintf *dev, u8 phy, u8 index, u16 *regd)
 	}
 	return 0;
 }
+
+static void mdio_write(struct net_device *dev, int phy_id, int loc, int val) {
+	struct deca_ethintf *deca = netdev_priv(dev);
+	u16 data = val;
+
+	write_mii_word(deca, phy_id, loc, &data);
+}
+
+static int init_mii(struct deca_ethintf *dev) {
+	u32 tmp = 0;
+	int ret = set_register(dev, MII_MODER_REG, MII_MODER_CLKDIV);
+	if (ret <= 0) {
+		pr_info("%s():%d - %d\n", __func__, __LINE__, ret);
+		return -1;
+	}
+	ret = get_register(dev, MII_MODER_REG, &tmp);
+	if (ret <= 0) {
+		pr_info("%s():%d - %d\n", __func__, __LINE__, ret);
+		return -1;
+	}
+	dev->mii.dev = dev->netdev;
+	dev->mii.mdio_read = mdio_read;
+	dev->mii.mdio_write = mdio_write;
+	dev->mii.phy_id_mask = 0x1f; /* ? */
+	dev->mii.reg_num_mask = 0x1f;
+	dev->mii.phy_id = 1;
+	return 0;
+}
+
+
 
 static int alloc_urb(struct deca_ethintf *dev)
 {
@@ -486,6 +516,31 @@ static void deca_ethintf_set_rx_mode(struct net_device *netdev)
 {
 }
 
+static int deca_ethintf_siocdevprivate(struct net_device *netdev, struct ifreq *rq,
+				       void __user *udata, int cmd) {
+	struct deca_ethintf *deca = netdev_priv(netdev);
+	u16 *data = (u16 *) &rq->ifr_ifru;
+	int res = 0;
+
+        switch (cmd) {
+        case SIOCDEVPRIVATE:
+                data[0] = deca->mii.phy_id;
+                fallthrough;
+        case SIOCDEVPRIVATE + 1:
+                read_mii_word(deca, deca->mii.phy_id, (data[1] & 0x1f), &data[3]);
+                break;
+        case SIOCDEVPRIVATE + 2:
+                if (!capable(CAP_NET_ADMIN))
+                        return -EPERM;
+                write_mii_word(deca, deca->mii.phy_id, (data[1] & 0x1f), &data[2]);
+                break;
+        default:
+                res = -EOPNOTSUPP;
+        }
+
+        return res;
+}
+
 static const struct net_device_ops deca_ethintf_netdev_ops = {
 	.ndo_open = deca_ethintf_open,
 	.ndo_stop = deca_ethintf_close,
@@ -494,6 +549,7 @@ static const struct net_device_ops deca_ethintf_netdev_ops = {
 	.ndo_set_rx_mode = deca_ethintf_set_rx_mode,
 	.ndo_set_mac_address = eth_mac_addr,
 	.ndo_validate_addr = eth_validate_addr,
+	.ndo_siocdevprivate = deca_ethintf_siocdevprivate,
 };
 
 static void deca_ethintf_get_drvinfo(struct net_device *netdev,
@@ -509,25 +565,26 @@ static void deca_ethintf_get_drvinfo(struct net_device *netdev,
 static int deca_ethintf_get_link_ksettings(struct net_device *netdev,
 					   struct ethtool_link_ksettings *ecmd)
 {
-	DEBUG_PRINT();
-	ecmd->base.speed = SPEED_100;
-	ecmd->base.autoneg = AUTONEG_DISABLE;
-	ecmd->base.duplex = DUPLEX_HALF;
-	ecmd->base.port = PORT_TP;
-	ecmd->base.phy_address = 0;
+	struct deca_ethintf* dev = netdev_priv(netdev);
+	mii_ethtool_get_link_ksettings(&dev->mii, ecmd);
 	return 0;
 }
 
 static int deca_ethintf_set_link_ksettings(struct net_device *netdev,
 					   const struct ethtool_link_ksettings *ecmd)
 {
-	DEBUG_PRINT();
-	return 0;
+	struct deca_ethintf* dev = netdev_priv(netdev);
+	return mii_ethtool_set_link_ksettings(&dev->mii, ecmd);
+}
+
+static u32 deca_ethintf_get_link(struct net_device *netdev) {
+	struct deca_ethintf* dev = netdev_priv(netdev);
+	return mii_link_ok(&dev->mii);
 }
 
 static const struct ethtool_ops ops = {
 	.get_drvinfo = deca_ethintf_get_drvinfo,
-	.get_link = ethtool_op_get_link,
+	.get_link = deca_ethintf_get_link,
 	.get_link_ksettings = deca_ethintf_get_link_ksettings,
 	.set_link_ksettings = deca_ethintf_set_link_ksettings,
 };
@@ -547,7 +604,6 @@ static int deca_ethintf_probe(struct usb_interface *intf,
 	struct deca_ethintf *deca;
 	struct usb_device *usbdev = interface_to_usbdev(intf);
 	int ret;
-	u16 reg;
 
 	netdev = alloc_etherdev(sizeof(struct deca_ethintf));
 	if (!netdev) {
@@ -590,7 +646,14 @@ static int deca_ethintf_probe(struct usb_interface *intf,
 	}
 	ret = init_mii(deca);
 	if (ret) {
-		DEBUG_PRINT();
+		dev_err(&intf->dev, "MII initialization error\n");
+		unregister_netdev(netdev);
+		usb_set_intfdata(intf, NULL);
+		unlink_urb(deca);
+		free_urb(deca);
+		free_rx_skb(deca);
+		free_netdev(netdev);
+		return -EIO;
 	}
 
 	return 0;
