@@ -113,7 +113,6 @@ static int init_mii(struct deca_ethintf *dev) {
 		pr_info("%s():%d - %d\n", __func__, __LINE__, ret);
 		return -1;
 	}
-	pr_info("---> %d\n", tmp);
 	return 0;
 }
 
@@ -593,13 +592,7 @@ static int deca_ethintf_probe(struct usb_interface *intf,
 	if (ret) {
 		DEBUG_PRINT();
 	}
-	ret = read_mii_word(deca, 0x01, 0, &reg);
-	pr_info("STATUS MII REG: %hu (%d)\n", reg, ret);
-#if 0
-	if (!ret) {
-		write_mii_word(deca, 0x01, 0, &reg);
-	}
-#endif
+
 	return 0;
 }
 
