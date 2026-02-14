@@ -15,3 +15,6 @@ crc32-calc
 *.order
 */test/*
 */.vscode/*
+.venv
+notes
+wireshark/
